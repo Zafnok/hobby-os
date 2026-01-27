@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e # Exit immediately if a command fails
+
+# 1. Clean artifacts
+rm -rf .zig-cache zig-out
+rm -rf dist/kernel
+rm -f my-os.iso
+
+# 2. Build using Zig Build System (Applies all fixes from build.zig)
+echo "Building Kernel..."
+zig build
+
+# 3. Copy the kernel to staging
+# zig build puts the binary in zig-out/bin/
+cp zig-out/bin/kernel dist/
+
+# 4. Generate ISO
+echo "Generating ISO..."
+xorriso -as mkisofs -b limine-bios-cd.bin \
+        -no-emul-boot -boot-load-size 4 -boot-info-table \
+        --efi-boot limine-uefi-cd.bin \
+        -efi-boot-part --efi-boot-image --protective-msdos-label \
+        -o my-os.iso dist/
+
+# 5. Stamp ISO (Optional for some Limine versions, but good practice)
+./limine bios-install my-os.iso
+
+echo "Done! Run with:"
+echo "qemu-system-x86_64 -cdrom my-os.iso -device isa-debug-exit,iobase=0x604,iosize=4"
