@@ -4,6 +4,8 @@ const limine = @cImport({
 });
 const serial = @import("kernel/serial.zig");
 const framebuffer = @import("drivers/framebuffer.zig");
+const gdt = @import("arch/x86_64/gdt.zig");
+const idt = @import("arch/x86_64/idt.zig");
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
@@ -57,6 +59,14 @@ fn processHhdmResponse() void {
 
 export fn kmain() callconv(.c) void {
     serial.info("Kernel Started");
+
+    gdt.init();
+    serial.info("GDT Initialized");
+    idt.init();
+    serial.info("IDT Initialized");
+
+    // Test IDT: Trigger Breakpoint Exception
+    // asm volatile ("int $3");
 
     checkBaseRevision();
     processHhdmResponse();

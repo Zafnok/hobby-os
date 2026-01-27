@@ -26,4 +26,4 @@ xorriso -as mkisofs -b limine-bios-cd.bin \
 ./limine bios-install my-os.iso
 
 echo "Done! Run with:"
-echo "qemu-system-x86_64 -cdrom my-os.iso -device isa-debug-exit,iobase=0x604,iosize=4"
+echo "qemu-system-x86_64 -cdrom my-os.iso -device isa-debug-exit,iobase=0x604,iosize=4 -serial stdio -vga std -m 512M -cpu qemu64,+pku,+pks"

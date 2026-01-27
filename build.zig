@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
     });
 
     kernel.addAssemblyFile(b.path("src/entry.S"));
+    kernel.addAssemblyFile(b.path("src/arch/x86_64/asm/interrupts.S"));
 
     // Add C source for requests
     kernel.addCSourceFile(.{
@@ -55,4 +56,18 @@ pub fn build(b: *std.Build) void {
     kernel.link_z_max_page_size = 0x1000;
 
     b.installArtifact(kernel);
+
+    const run_cmd = b.addSystemCommand(&.{
+        "qemu-system-x86_64",
+        "-M",
+        "q35",
+        "-serial",
+        "stdio",
+        "-kernel",
+    });
+    run_cmd.addArtifactArg(kernel);
+    run_cmd.step.dependOn(b.getInstallStep());
+
+    const run_step = b.step("run", "Run the kernel in QEMU");
+    run_step.dependOn(&run_cmd.step);
 }
