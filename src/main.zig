@@ -7,6 +7,7 @@ pub const pmm = @import("memory/pmm.zig");
 const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
+const pks = @import("arch/x86_64/pks.zig");
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
@@ -72,6 +73,9 @@ pub fn initKernel() void {
     serial.info("GDT Initialized");
     idt.init();
     serial.info("IDT Initialized");
+
+    pks.init();
+    serial.info("PKS Initialized");
 
     pmm.init();
     // pmm.init() logs its own completion
