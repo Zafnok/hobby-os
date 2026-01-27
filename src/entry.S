@@ -19,7 +19,6 @@ _start:
 
     mov %cr4, %rax
     or  $0x600, %ax  /* OSFXSR | OSXMMEXCPT */
-    bts $24, %rax    /* PKS (Protection Keys for Supervisor) */
     mov %rax, %cr4
 
     /* 3. Enter Kernel */

@@ -62,10 +62,15 @@ export fn kmain() callconv(.c) void {
 }
 
 fn shutdown() noreturn {
-    // Avoid importing root/serial globally.
-    // We just hang here.
-    // If we want logging, we re-import or pass it.
-    // For now, simpler is better to fix the loop.
+    // QEMU debug exit
+    // Port 0x604, value can be anything (usually 0 or 1 signifies status)
+    // We'll write 0 to exit 'successfully' (QEMU might map this to exit code 1 or 0 depending on version)
+    asm volatile ("outb %[val], %[port]"
+        :
+        : [val] "{al}" (@as(u8, 0)),
+          [port] "{dx}" (@as(u16, 0x604)),
+    );
+
     while (true) {
         asm volatile ("hlt");
     }

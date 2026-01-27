@@ -21,8 +21,14 @@ pub fn build(b: *std.Build) void {
     // Options
     const log_level = b.option(LogLevel, "log_level", "Minimum log level") orelse .info;
 
+    // We create separate option sets for default (PKS on) and no-pks
     const options = b.addOptions();
     options.addOption(LogLevel, "log_level", log_level);
+    options.addOption(bool, "expect_pks", true);
+
+    const options_no_pks = b.addOptions();
+    options_no_pks.addOption(LogLevel, "log_level", log_level);
+    options_no_pks.addOption(bool, "expect_pks", false);
 
     // ======================================
     // Main Kernel Build
@@ -57,8 +63,10 @@ pub fn build(b: *std.Build) void {
         "std",
         "-m",
         "512M",
+        "-m",
+        "512M",
         "-cpu",
-        "qemu64,+pku,+pks",
+        "max,+pks",
         "-kernel",
     });
     run_cmd.addArtifactArg(kernel);
@@ -68,10 +76,25 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     // ======================================
-    // Test Kernel Build
+    // Test Kernel Build (PKS Enabled - Default)
     // ======================================
-    // We create a test artifact that uses src/main.zig as root (to find tests)
-    // but uses our custom test runner.
+    createTestStep(b, target, optimize, options, true, "test", "Run kernel tests (PKS Enabled)");
+
+    // ======================================
+    // Test Kernel Build (PKS Disabled)
+    // ======================================
+    createTestStep(b, target, optimize, options_no_pks, false, "test-no-pks", "Run kernel tests (PKS Disabled)");
+}
+
+fn createTestStep(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    options: *std.Build.Step.Options,
+    enable_pks: bool,
+    step_name: []const u8,
+    step_desc: []const u8,
+) void {
     const test_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -80,33 +103,34 @@ pub fn build(b: *std.Build) void {
         .pic = false,
     });
     test_mod.addOptions("build_options", options);
-    // Workaround: Allow test_runner to import the root module by an alias
-    // since @import("root") resolves to the runner itself in some contexts.
     test_mod.addImport("test_root", test_mod);
 
     const kernel_test = b.addTest(.{
-        .name = "kernel_test",
+        .name = if (enable_pks) "kernel_test" else "kernel_test_no_pks",
         .root_module = test_mod,
         .test_runner = .{ .path = b.path("test/test_runner.zig"), .mode = .simple },
     });
 
     configureKernel(b, kernel_test);
 
-    // Test Run Step (ISO Creation -> QEMU)
-    // 1. Copy test kernel to dist/kernel
+    // ISO Creation -> QEMU
     const cp_cmd = b.addSystemCommand(&.{"cp"});
     cp_cmd.addArtifactArg(kernel_test);
+    // Limine config expects /kernel, so we must overwrite it
     cp_cmd.addArg("dist/kernel");
 
-    // 2. Generate ISO using xorriso
-    const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", "test.iso", "dist/" });
+    // Fix: xorriso needs the dist folder to exist and contain what we want
+    // We reuse 'dist/' but we need to make sure we don't overwrite if running in parallel.
+    // Ideally we'd use separate folders, but for now let's use separate ISO names.
+    const iso_name = if (enable_pks) "test.iso" else "test_no_pks.iso";
+
+    const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", iso_name, "dist/" });
     iso_cmd.step.dependOn(&cp_cmd.step);
 
-    // 3. Stamp ISO with Limine BIOS bootloader
-    const limine_deploy = b.addSystemCommand(&.{ "./limine", "bios-install", "test.iso" });
+    const limine_deploy = b.addSystemCommand(&.{ "./limine", "bios-install", iso_name });
     limine_deploy.step.dependOn(&iso_cmd.step);
 
-    // 4. Run QEMU with the ISO
+    // QEMU Flags
     const run_test_cmd = b.addSystemCommand(&.{
         "qemu-system-x86_64",
         "-M",
@@ -119,16 +143,23 @@ pub fn build(b: *std.Build) void {
         "std",
         "-m",
         "512M",
-        "-cpu",
-        "qemu64,+pku,+pks",
         "-cdrom",
-        "test.iso",
+        iso_name,
         "-boot",
         "d",
     });
+
+    if (enable_pks) {
+        run_test_cmd.addArgs(&.{ "-cpu", "max,+pks" });
+    } else {
+        // Explicitly disable PKS or just don't add it (qemu64 default is off)
+        // Use a CPU that naturally lacks PKS but has other modern features (e.g. Skylake-Server)
+        run_test_cmd.addArgs(&.{ "-cpu", "Skylake-Server" });
+    }
+
     run_test_cmd.step.dependOn(&limine_deploy.step);
 
-    const test_step = b.step("test", "Run kernel tests in QEMU");
+    const test_step = b.step(step_name, step_desc);
     test_step.dependOn(&run_test_cmd.step);
 }
 

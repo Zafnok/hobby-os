@@ -79,11 +79,19 @@ pub fn init() void {
     serial.info("PKS: PKRS initialized to 0.");
 }
 
+const build_options = @import("build_options");
+
 test "PKS Support Check" {
     const supported = checkSupport();
     if (supported) {
-        std.debug.print("PKS IS Supported\n", .{});
+        serial.info("PKS IS Supported");
     } else {
-        std.debug.print("PKS IS NOT Supported\n", .{});
+        serial.info("PKS IS NOT Supported");
+    }
+
+    // Assert that the hardware state matches our build expectation
+    if (supported != build_options.expect_pks) {
+        serial.err("TEST FAILURE: PKS Hardware Support does not match Build Expectation!");
+        return error.PksStateMismatch;
     }
 }
