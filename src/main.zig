@@ -62,10 +62,9 @@ fn processHhdmResponse() void {
     }
 }
 
-/// The kernel entry point called by the startup code.
-/// Initializes GDT, IDT, PMM, and the Framebuffer.
+/// Common kernel initialization logic.
 /// Initializes the kernel core subsystems (Serial, GDT, IDT, PMM).
-/// This is used by both the main kernel entry and the test runner.
+/// This is used by both the main kernel entry (kmain) and the test runner.
 pub fn initKernel() void {
     serial.info("Kernel Initialization Started");
 
@@ -78,10 +77,8 @@ pub fn initKernel() void {
     // pmm.init() logs its own completion
 }
 
-/// The kernel entry point called by the startup code.
-/// The kernel entry point called by the startup code.
-/// The kernel entry point called by the startup code.
-/// The kernel entry point called by the startup code.
+/// The main kernel entry point implementation.
+/// This function is exported as 'kmain' and is called by the assembly startup code (entry.S).
 fn kmain_impl() callconv(.c) void {
     serial.info("Kernel Started (Production Mode)");
     initKernel();
@@ -110,40 +107,10 @@ comptime {
     }
 }
 
-test "PMM Allocation and Free" {
-    // Note: initKernel() must be called by the runner before this test.
-    const page1 = pmm.allocatePage();
-    try std.testing.expect(page1 != null);
-    serial.info("Test: Allocated Page 1");
-
-    const page2 = pmm.allocatePage();
-    try std.testing.expect(page2 != null);
-    serial.info("Test: Allocated Page 2");
-
-    // Addresses should be distinct
-    try std.testing.expect(page1.? != page2.?);
-
-    pmm.freePage(page2.?);
-    serial.info("Test: Freed Page 2");
-
-    pmm.freePage(page1.?);
-    serial.info("Test: Freed Page 1");
-}
-
-test "Framebuffer Access" {
-    const fb = framebuffer.getFramebuffer();
-    if (fb) |f| {
-        try std.testing.expect(f.width > 0);
-        try std.testing.expect(f.height > 0);
-
-        // Try drawing a test pixel (top left)
-        // We don't want to mess up the screen too much during tests, but a pixel is fine.
-        framebuffer.putPixel(f, 0, 0, 0xFFFFFFFF);
-    } else {
-        // If we are testing on a system without FB, we might skip.
-        // But our QEMU setup should have it.
-        serial.warn("Framebuffer test skipped (no FB)");
-    }
+test {
+    // Force inclusions of tests in imported modules
+    std.testing.refAllDecls(pmm);
+    std.testing.refAllDecls(framebuffer);
 }
 
 /// Shuts down the kernel by entering an infinite loop.

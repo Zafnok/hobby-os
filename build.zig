@@ -87,7 +87,7 @@ pub fn build(b: *std.Build) void {
     const kernel_test = b.addTest(.{
         .name = "kernel_test",
         .root_module = test_mod,
-        .test_runner = .{ .path = b.path("src/test_runner.zig"), .mode = .simple },
+        .test_runner = .{ .path = b.path("test/test_runner.zig"), .mode = .simple },
     });
 
     configureKernel(b, kernel_test);

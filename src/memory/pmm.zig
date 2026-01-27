@@ -208,3 +208,29 @@ pub fn freePage(phys_addr: u64) void {
         }
     }
 }
+
+test "PMM Allocation and Free" {
+    // Note: initKernel() must be called by the runner before this test,
+    // but the test runner handles that globally.
+    // Ensure we are initialized? pmm.init() might be called by initKernel.
+    // If not, we might need to call it?
+    // Logic: test runner calls initKernel -> pmm.init(). So we are good.
+
+    // We allocation
+    const page1 = allocatePage();
+    try std.testing.expect(page1 != null);
+    serial.info("Test: Allocated Page 1");
+
+    const page2 = allocatePage();
+    try std.testing.expect(page2 != null);
+    serial.info("Test: Allocated Page 2");
+
+    // Addresses should be distinct
+    try std.testing.expect(page1.? != page2.?);
+
+    freePage(page2.?);
+    serial.info("Test: Freed Page 2");
+
+    freePage(page1.?);
+    serial.info("Test: Freed Page 1");
+}

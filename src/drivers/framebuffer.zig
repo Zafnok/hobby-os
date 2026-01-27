@@ -91,3 +91,17 @@ pub fn fillCircle(fb: *limine.struct_limine_framebuffer, cx: u64, cy: u64, radiu
         }
     }
 }
+
+test "Framebuffer Access" {
+    const serial = @import("../kernel/serial.zig");
+    const fb = getFramebuffer();
+    if (fb) |f| {
+        try std.testing.expect(f.width > 0);
+        try std.testing.expect(f.height > 0);
+
+        // Try drawing a test pixel (top left)
+        putPixel(f, 0, 0, 0xFFFFFFFF);
+    } else {
+        serial.warn("Framebuffer test skipped (no FB)");
+    }
+}
