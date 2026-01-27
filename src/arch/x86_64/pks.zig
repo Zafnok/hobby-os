@@ -54,9 +54,22 @@ pub fn checkSupport() bool {
 pub fn init() void {
     serial.info("PKS: Checking support...");
 
+    const builtin = @import("builtin");
+
     if (!checkSupport()) {
-        serial.warn("PKS: Not supported by hardware. PKS will be disabled.");
-        return;
+        serial.err("PKS: Not supported by hardware.");
+
+        // In test mode, if we explicitly expect PKS to be missing, we allow continuing
+        // so that the test runner can verify the detection logic.
+        if (builtin.is_test and !build_options.expect_pks) {
+            serial.warn("TEST ALLOWANCE: Continuing without PKS as configured.");
+            return;
+        }
+
+        serial.err("FATAL: PKS is a required feature. System Halted.");
+        while (true) {
+            asm volatile ("hlt");
+        }
     }
 
     // Enable PKS in CR4

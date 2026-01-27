@@ -75,7 +75,6 @@ pub fn initKernel() void {
     serial.info("IDT Initialized");
 
     pks.init();
-    serial.info("PKS Initialized");
 
     pmm.init();
     // pmm.init() logs its own completion
