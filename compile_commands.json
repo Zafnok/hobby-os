@@ -1,0 +1,7 @@
+[
+    {
+        "directory": "/Users/nwentz/os_dev",
+        "command": "zig cc -target x86_64-freestanding -nostdlib -Isrc -c src/limine.c",
+        "file": "src/limine.c"
+    }
+]
