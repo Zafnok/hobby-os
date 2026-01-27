@@ -8,6 +8,7 @@ const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
 const pks = @import("arch/x86_64/pks.zig");
+const vmm = @import("memory/vmm.zig");
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
@@ -77,6 +78,7 @@ pub fn initKernel() void {
     pks.init();
 
     pmm.init();
+    vmm.init();
     // pmm.init() logs its own completion
 }
 
