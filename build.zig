@@ -24,12 +24,15 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption(LogLevel, "log_level", log_level);
 
+    // ======================================
+    // Main Kernel Build
+    // ======================================
     const kernel_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .code_model = .kernel,
-        .pic = false, // Kernel code should generally not be PIC unless necessary
+        .pic = false,
     });
     kernel_mod.addOptions("build_options", options);
 
@@ -38,34 +41,24 @@ pub fn build(b: *std.Build) void {
         .root_module = kernel_mod,
     });
 
-    kernel.addAssemblyFile(b.path("src/entry.S"));
-    kernel.addAssemblyFile(b.path("src/arch/x86_64/asm/interrupts.S"));
-
-    // Add C source for requests
-    kernel.addCSourceFile(.{
-        .file = b.path("src/limine.c"),
-        .flags = &.{ "-nostdlib", "-ffreestanding" },
-    });
-    // Add Include Path for Limine (used by Zig imports)
-    kernel.addIncludePath(b.path("src"));
-
-    // Force LLVM/LLD
-    kernel.use_llvm = true;
-    kernel.use_lld = true;
-
-    kernel.setLinkerScript(b.path("linker.ld"));
-
-    // FIX: Use the dedicated field for max-page-size instead of addLinkerArg
-    kernel.link_z_max_page_size = 0x1000;
-
+    configureKernel(b, kernel);
     b.installArtifact(kernel);
 
+    // Run Step
     const run_cmd = b.addSystemCommand(&.{
         "qemu-system-x86_64",
         "-M",
         "q35",
         "-serial",
         "stdio",
+        "-device",
+        "isa-debug-exit,iobase=0x604,iosize=4",
+        "-vga",
+        "std",
+        "-m",
+        "512M",
+        "-cpu",
+        "qemu64,+pku,+pks",
         "-kernel",
     });
     run_cmd.addArtifactArg(kernel);
@@ -73,4 +66,91 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the kernel in QEMU");
     run_step.dependOn(&run_cmd.step);
+
+    // ======================================
+    // Test Kernel Build
+    // ======================================
+    // We create a test artifact that uses src/main.zig as root (to find tests)
+    // but uses our custom test runner.
+    const test_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .code_model = .kernel,
+        .pic = false,
+    });
+    test_mod.addOptions("build_options", options);
+    // Workaround: Allow test_runner to import the root module by an alias
+    // since @import("root") resolves to the runner itself in some contexts.
+    test_mod.addImport("test_root", test_mod);
+
+    const kernel_test = b.addTest(.{
+        .name = "kernel_test",
+        .root_module = test_mod,
+        .test_runner = .{ .path = b.path("src/test_runner.zig"), .mode = .simple },
+    });
+
+    configureKernel(b, kernel_test);
+
+    // Test Run Step (ISO Creation -> QEMU)
+    // 1. Copy test kernel to dist/kernel
+    const cp_cmd = b.addSystemCommand(&.{"cp"});
+    cp_cmd.addArtifactArg(kernel_test);
+    cp_cmd.addArg("dist/kernel");
+
+    // 2. Generate ISO using xorriso
+    const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", "test.iso", "dist/" });
+    iso_cmd.step.dependOn(&cp_cmd.step);
+
+    // 3. Stamp ISO with Limine BIOS bootloader
+    const limine_deploy = b.addSystemCommand(&.{ "./limine", "bios-install", "test.iso" });
+    limine_deploy.step.dependOn(&iso_cmd.step);
+
+    // 4. Run QEMU with the ISO
+    const run_test_cmd = b.addSystemCommand(&.{
+        "qemu-system-x86_64",
+        "-M",
+        "q35",
+        "-serial",
+        "stdio",
+        "-device",
+        "isa-debug-exit,iobase=0x604,iosize=4",
+        "-vga",
+        "std",
+        "-m",
+        "512M",
+        "-cpu",
+        "qemu64,+pku,+pks",
+        "-cdrom",
+        "test.iso",
+        "-boot",
+        "d",
+    });
+    run_test_cmd.step.dependOn(&limine_deploy.step);
+
+    const test_step = b.step("test", "Run kernel tests in QEMU");
+    test_step.dependOn(&run_test_cmd.step);
+}
+
+/// Helper to apply common kernel configuration (assembly, linker script, C sources).
+fn configureKernel(b: *std.Build, compile: *std.Build.Step.Compile) void {
+    compile.addAssemblyFile(b.path("src/entry.S"));
+    compile.addAssemblyFile(b.path("src/arch/x86_64/asm/interrupts.S"));
+
+    // Add C source for requests
+    compile.addCSourceFile(.{
+        .file = b.path("src/limine.c"),
+        .flags = &.{ "-nostdlib", "-ffreestanding" },
+    });
+    // Add Include Path for Limine (used by Zig imports)
+    compile.addIncludePath(b.path("src"));
+
+    // Force LLVM/LLD
+    compile.use_llvm = true;
+    compile.use_lld = true;
+
+    compile.setLinkerScript(b.path("linker.ld"));
+
+    // FIX: Use the dedicated field for max-page-size
+    compile.link_z_max_page_size = 0x1000;
 }

@@ -3,6 +3,7 @@ dist/
 zig-out/
 limine
 limine-official.h
-my-os.iso
+*.iso
 *.md
 !README.md
+.cache/

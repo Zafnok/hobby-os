@@ -1,9 +1,9 @@
 const std = @import("std");
 const limine = @import("limine_import.zig").C;
-const serial = @import("kernel/serial.zig");
+pub const serial = @import("kernel/serial.zig");
 const memory = @import("memory/layout.zig");
 const framebuffer = @import("drivers/framebuffer.zig");
-const pmm = @import("memory/pmm.zig");
+pub const pmm = @import("memory/pmm.zig");
 const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
@@ -64,8 +64,10 @@ fn processHhdmResponse() void {
 
 /// The kernel entry point called by the startup code.
 /// Initializes GDT, IDT, PMM, and the Framebuffer.
-export fn kmain() callconv(.c) void {
-    serial.info("Kernel Started");
+/// Initializes the kernel core subsystems (Serial, GDT, IDT, PMM).
+/// This is used by both the main kernel entry and the test runner.
+pub fn initKernel() void {
+    serial.info("Kernel Initialization Started");
 
     gdt.init();
     serial.info("GDT Initialized");
@@ -73,41 +75,74 @@ export fn kmain() callconv(.c) void {
     serial.info("IDT Initialized");
 
     pmm.init();
+    // pmm.init() logs its own completion
+}
 
-    // Verification: PMM
-    if (pmm.allocatePage()) |page1| {
-        serial.info("PMM Test: Allocated page at: 0x");
-        serial.printHex(.info, page1);
-
-        if (pmm.allocatePage()) |page2| {
-            serial.info("PMM Test: Allocated page at: 0x");
-            serial.printHex(.info, page2);
-            pmm.freePage(page2);
-            serial.info("PMM Test: Freed page 2");
-        }
-        pmm.freePage(page1);
-        serial.info("PMM Test: Freed page 1");
-    } else {
-        serial.err("PMM Test: Allocation FAILED!");
-    }
-
-    // Test IDT: Trigger Breakpoint Exception
-    // asm volatile ("int $3");
+/// The kernel entry point called by the startup code.
+/// The kernel entry point called by the startup code.
+/// The kernel entry point called by the startup code.
+/// The kernel entry point called by the startup code.
+fn kmain_impl() callconv(.c) void {
+    serial.info("Kernel Started (Production Mode)");
+    initKernel();
 
     checkBaseRevision();
     processHhdmResponse();
 
+    // Check for Framebuffer and run demo if available
     if (framebuffer.getFramebuffer()) |fb| {
-        serial.info("Framebuffer obtained from Limine.");
+        serial.info("Framebuffer available. Running smiley demo...");
         fun.drawSmileyFace(fb);
-        serial.info("Drawing done. Hanging.");
+        serial.info("Demo complete.");
     } else {
-        serial.err("Error: Limine failed to provide a framebuffer.");
-        serial.err("Hanging.");
+        serial.warn("No Framebuffer found. Skipping demo.");
     }
 
     while (true) {
         asm volatile ("hlt");
+    }
+}
+
+// Conditionally export kmain based on build mode
+comptime {
+    if (!@import("builtin").is_test) {
+        @export(@as(*const fn () callconv(.c) void, &kmain_impl), .{ .name = "kmain", .linkage = .strong });
+    }
+}
+
+test "PMM Allocation and Free" {
+    // Note: initKernel() must be called by the runner before this test.
+    const page1 = pmm.allocatePage();
+    try std.testing.expect(page1 != null);
+    serial.info("Test: Allocated Page 1");
+
+    const page2 = pmm.allocatePage();
+    try std.testing.expect(page2 != null);
+    serial.info("Test: Allocated Page 2");
+
+    // Addresses should be distinct
+    try std.testing.expect(page1.? != page2.?);
+
+    pmm.freePage(page2.?);
+    serial.info("Test: Freed Page 2");
+
+    pmm.freePage(page1.?);
+    serial.info("Test: Freed Page 1");
+}
+
+test "Framebuffer Access" {
+    const fb = framebuffer.getFramebuffer();
+    if (fb) |f| {
+        try std.testing.expect(f.width > 0);
+        try std.testing.expect(f.height > 0);
+
+        // Try drawing a test pixel (top left)
+        // We don't want to mess up the screen too much during tests, but a pixel is fine.
+        framebuffer.putPixel(f, 0, 0, 0xFFFFFFFF);
+    } else {
+        // If we are testing on a system without FB, we might skip.
+        // But our QEMU setup should have it.
+        serial.warn("Framebuffer test skipped (no FB)");
     }
 }
 
