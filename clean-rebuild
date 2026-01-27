@@ -8,7 +8,7 @@ rm -f my-os.iso
 
 # 2. Build using Zig Build System (Applies all fixes from build.zig)
 echo "Building Kernel..."
-zig build
+zig build "$@"
 
 # 3. Copy the kernel to staging
 # zig build puts the binary in zig-out/bin/

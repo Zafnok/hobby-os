@@ -1,5 +1,12 @@
 const std = @import("std");
 
+const LogLevel = enum {
+    debug,
+    info,
+    warn,
+    err,
+};
+
 pub fn build(b: *std.Build) void {
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .x86_64,
@@ -8,6 +15,12 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{});
 
+    // Options
+    const log_level = b.option(LogLevel, "log_level", "Minimum log level") orelse .info;
+
+    const options = b.addOptions();
+    options.addOption(LogLevel, "log_level", log_level);
+
     const kernel_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -15,6 +28,7 @@ pub fn build(b: *std.Build) void {
         .code_model = .kernel,
         .pic = false, // Kernel code should generally not be PIC unless necessary
     });
+    kernel_mod.addOptions("build_options", options);
 
     const kernel = b.addExecutable(.{
         .name = "kernel",

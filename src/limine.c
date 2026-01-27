@@ -80,14 +80,6 @@ __attribute__((used,
     memmap_request = {
         .id = LIMINE_MEMMAP_REQUEST_ID, .revision = 0, .response = NULL};
 
-// Entry Point Request
-__attribute__((
-    used, section(".limine_reqs"))) volatile struct limine_entry_point_request
-    entry_point_request = {.id = LIMINE_ENTRY_POINT_REQUEST_ID,
-                           .revision = 0,
-                           .response = NULL,
-                           .entry = NULL};
-
 // Executable File Request
 __attribute__((
     used,
