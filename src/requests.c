@@ -1,52 +1,33 @@
-#include <stdint.h>
+#include "limine.h"
+#include <stddef.h>
 
-// Limine Header
-#define LIMINE_COMMON_MAGIC 0xc7b1dd30df4c8b88, 0x0a82e883a194fcf1
+// The requests can be placed anywhere in the executable sections
+// provided they are loaded by the bootloader.
+// We use a dedicated section to be safe and clean.
+// We export these variables so Zig can access them (extern var).
 
-struct limine_base_revision {
-  uint64_t id[2];
-  uint64_t revision;
-};
+// Start Marker
+__attribute__((used, section(".limine_reqs"))) static volatile uint64_t
+    limine_reqs_start_marker[4] = LIMINE_REQUESTS_START_MARKER;
 
-struct limine_framebuffer_response;
+// Base Revision (Version 1)
+__attribute__((used,
+               section(".limine_reqs"))) volatile uint64_t base_revision[3] =
+    LIMINE_BASE_REVISION(1);
 
-struct limine_framebuffer_request {
-  uint64_t id[4];
-  uint64_t revision;
-  struct limine_framebuffer_response *response;
-};
-
-struct limine_hhdm_request {
-  uint64_t id[4];
-  uint64_t revision;
-  void *response;
-};
-
-// Requests
-// Must be exported so Zig can access them
-// Must be in .limine_reqs section
-// Must be 'used' to prevent GC
-
+// Framebuffer Request
 __attribute__((
-    used, aligned(8),
-    section(
-        ".limine_reqs"))) volatile struct limine_base_revision base_revision = {
-    .id = {0xf9562b2d5c95a6c8, 0x6a7b384944536bdc}, .revision = 0};
-
-__attribute__((
-    used, aligned(8),
-    section(".limine_reqs"))) volatile struct limine_framebuffer_request
+    used, section(".limine_reqs"))) volatile struct limine_framebuffer_request
     framebuffer_request = {
-        .id = {LIMINE_COMMON_MAGIC, 0x9d5827dcd881dd75, 0xa77e8b6979cf5778},
-        .revision = 0,
-        .response = 0 // Explicitly NULL
-};
+        .id = LIMINE_FRAMEBUFFER_REQUEST_ID, .revision = 0, .response = NULL};
 
-// HHDM temporarily disabled/commented out to isolate FB
+// HHDM Request
 __attribute__((
-    used, aligned(8),
+    used,
     section(
         ".limine_reqs"))) volatile struct limine_hhdm_request hhdm_request = {
-    .id = {LIMINE_COMMON_MAGIC, 0x48dcf1cb8ad2b852, 0x63984e959a98244b},
-    .revision = 0,
-    .response = 0};
+    .id = LIMINE_HHDM_REQUEST_ID, .revision = 0, .response = NULL};
+
+// End Marker
+__attribute__((used, section(".limine_reqs"))) static volatile uint64_t
+    limine_reqs_end_marker[2] = LIMINE_REQUESTS_END_MARKER;

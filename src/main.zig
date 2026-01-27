@@ -79,14 +79,7 @@ export fn kmain() callconv(.c) void {
             log("Framebuffer obtained from Limine.");
         }
     } else {
-        log("Error: Response pointer is NULL. Attempting Standard HHDM Fallback.");
-        // Standard Limine HHDM Base = 0xffff800000000000
-        // QEMU VBE Physical        = 0xfd000000
-        // Virtual Address          = 0xffff8000fd000000
-        fb_ptr = @ptrFromInt(0xffff8000fd000000);
-        fb_width = 1280;
-        fb_height = 800;
-        fb_pitch = 1280 * 4;
+        log("Error: Limine failed to provide a framebuffer.");
     }
 
     if (fb_width > 0) {
