@@ -188,6 +188,11 @@ export fn handleInterrupt(frame: *InterruptFrame) callconv(.c) void {
         );
         serial.err("CR2 (Fault Address):");
         serial.printHex(.error_level, cr2);
+
+        // Check Bit 5 (Protection Key Violation)
+        if ((frame.err_code & (1 << 5)) != 0) {
+            serial.err(">> PROTECTION KEY VIOLATION <<");
+        }
     }
 
     serial.err("System Halted.");

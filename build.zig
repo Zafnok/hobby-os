@@ -12,6 +12,9 @@ pub fn build(b: *std.Build) void {
         .cpu_arch = .x86_64,
         .os_tag = .freestanding,
         .abi = .none,
+        .cpu_features_add = std.Target.x86.featureSet(&.{
+            .pku,
+        }),
     });
     const optimize = b.standardOptimizeOption(.{});
 

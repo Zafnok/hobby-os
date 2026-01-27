@@ -18,7 +18,7 @@ const GdtEntry = packed struct {
 
 // Helper Struct to organize our GDT
 const GlobalDescriptorTable = struct {
-    entries: [5]GdtEntry, // Null, Kernel Code, Kernel Data, User Code, User Data
+    entries: [3]GdtEntry, // Null, Kernel Code, Kernel Data
 
     pub fn init() GlobalDescriptorTable {
         return .{
@@ -35,15 +35,6 @@ const GlobalDescriptorTable = struct {
                 // Access: Present(1) | Ring0(00) | Sys(1) | Exec(0) | Direction(0) | Writable(1) | Accessed(0) -> 0x92
                 // Granularity: Granularity(1) | LongMode(0) | Size(0) | 0xF -> 0xCF (LongMode ignored for data, but usually 0)
                 GdtEntry{ .limit_low = 0xFFFF, .base_low = 0, .base_middle = 0, .access = 0x92, .granularity = 0xCF, .base_high = 0 },
-
-                // 3: User Code (Ring 3)
-                // Access: Present(1) | Ring3(11) | Sys(1) | Exec(1) | Conforming(0) | Readable(1) | Accessed(0) -> 0xFA
-                // Granularity: LongMode(1) -> 0xAF
-                GdtEntry{ .limit_low = 0xFFFF, .base_low = 0, .base_middle = 0, .access = 0xFA, .granularity = 0xAF, .base_high = 0 },
-
-                // 4: User Data (Ring 3)
-                // Access: Present(1) | Ring3(11) | Sys(1) | Exec(0) | Direction(0) | Writable(1) | Accessed(0) -> 0xF2
-                GdtEntry{ .limit_low = 0xFFFF, .base_low = 0, .base_middle = 0, .access = 0xF2, .granularity = 0xCF, .base_high = 0 },
             },
         };
     }
@@ -69,8 +60,7 @@ const GlobalDescriptorTable = struct {
             \\ 1:
             :
             : [gdtr] "r" (&descriptor),
-            : .{ .rax = true, .memory = true }
-        );
+            : .{ .rax = true, .memory = true });
     }
 };
 
