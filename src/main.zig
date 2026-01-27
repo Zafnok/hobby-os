@@ -1,13 +1,17 @@
 const std = @import("std");
-const limine = @import("limine.zig");
+const limine = @cImport({
+    @cInclude("limine.h");
+});
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
 // Requests defined in requests.c
-extern var base_revision: limine.BaseRevision;
-extern var framebuffer_request: limine.FramebufferRequest;
+
+// Base revision is now [3]u64 in requests.c
+extern var base_revision: [3]u64;
+extern var framebuffer_request: limine.struct_limine_framebuffer_request;
 // Extern HHDM (we need a struct for it in main, but treating as ptr for check is enough)
-extern var hhdm_request: anyopaque;
+extern var hhdm_request: limine.struct_limine_hhdm_request;
 
 // Helper to write to IO port
 fn outb(port: u16, value: u8) void {
@@ -35,12 +39,16 @@ export fn kmain() callconv(.c) void {
     }
 
     // Check Base Revision
-    const rev = @as(*volatile u64, &base_revision.revision).*;
+    // In strict C macro: LIMINE_BASE_REVISION_SUPPORTED(VAR) is VAR[2] == 0
+    // VAR[1] is the revision.
+    const supported = @as(*volatile u64, &base_revision[2]).*;
+    const rev = @as(*volatile u64, &base_revision[1]).*;
+    _ = rev;
 
-    if (rev == 0xFFFF) {
-        log("FATAL: Base Revision is still 0xFFFF. Limine did NOT process requests.");
+    if (supported != 0) {
+        log("FATAL: Base Revision 3 NOT Supported by Limine.");
     } else {
-        log("Base Revision updated by Limine (Success).");
+        log("Base Revision Supported.");
     }
 
     // Check HHDM
@@ -51,19 +59,18 @@ export fn kmain() callconv(.c) void {
         log("DEBUG: HHDM Ptr is Low/Invalid!");
     }
 
-    const hhdm_resp = @as(*volatile u64, @ptrFromInt(hhdm_ptr + 40)).*;
-    if (hhdm_resp != 0) {
+    const hhdm_resp = @as(*volatile ?*limine.struct_limine_hhdm_response, &hhdm_request.response).*;
+    if (hhdm_resp) |resp| {
         log("HHDM Request Satisfied!");
-        const hhdm_offset = @as(*volatile u64, @ptrFromInt(hhdm_resp)).*;
-        _ = hhdm_offset;
+        const offset = resp.offset;
+        _ = offset;
     } else {
         log("HHDM Request Response is NULL.");
     }
 
     // Volatile read of the response pointer
-    const response_ptr = @as(*volatile ?*limine.FramebufferResponse, &framebuffer_request.response).*;
+    const response_ptr = @as(*volatile ?*limine.struct_limine_framebuffer_response, &framebuffer_request.response).*;
 
-    // FALLBACK VARIABLES
     var fb_ptr: [*]u32 = undefined;
     var fb_width: u64 = 0;
     var fb_height: u64 = 0;
@@ -71,11 +78,17 @@ export fn kmain() callconv(.c) void {
 
     if (response_ptr) |response| {
         if (response.framebuffer_count >= 1) {
-            const fb = response.framebuffers[0];
-            fb_ptr = @ptrFromInt(@intFromPtr(fb.address));
-            fb_width = fb.width;
-            fb_height = fb.height;
-            fb_pitch = fb.pitch;
+            // response.framebuffers is a pointer to an array of pointers to framebuffer structs
+            const fbs = response.framebuffers;
+            // We need to access fbs[0]
+            const fb = fbs[0];
+
+            // fb is [*c]struct... so we must dereference it to access fields.
+            // Assuming non-null because count >= 1.
+            fb_ptr = @ptrCast(@alignCast(fb.*.address));
+            fb_width = fb.*.width;
+            fb_height = fb.*.height;
+            fb_pitch = fb.*.pitch;
             log("Framebuffer obtained from Limine.");
         }
     } else {

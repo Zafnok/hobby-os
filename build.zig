@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/requests.c"),
         .flags = &.{ "-nostdlib", "-ffreestanding" },
     });
+    kernel.addIncludePath(b.path("src"));
 
     // Force LLVM/LLD
     kernel.use_llvm = true;
