@@ -25,9 +25,10 @@ pub fn build(b: *std.Build) void {
 
     // Add C source for requests
     kernel.addCSourceFile(.{
-        .file = b.path("src/requests.c"),
+        .file = b.path("src/limine.c"),
         .flags = &.{ "-nostdlib", "-ffreestanding" },
     });
+    // Add Include Path for Limine (used by Zig imports)
     kernel.addIncludePath(b.path("src"));
 
     // Force LLVM/LLD

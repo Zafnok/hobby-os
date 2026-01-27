@@ -5,12 +5,12 @@ const limine = @cImport({
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
-// Requests defined in requests.c
+// Requests defined in requests.c (now limine.c)
 
 // Base revision is now [3]u64 in requests.c
 extern var base_revision: [3]u64;
 extern var framebuffer_request: limine.struct_limine_framebuffer_request;
-// Extern HHDM (we need a struct for it in main, but treating as ptr for check is enough)
+// Extern HHDM
 extern var hhdm_request: limine.struct_limine_hhdm_request;
 
 // Helper to write to IO port
@@ -30,9 +30,7 @@ fn log(msg: []const u8) void {
     outb(0x3F8, '\n');
 }
 
-export fn kmain() callconv(.c) void {
-    log("Kernel Started");
-
+fn checkBaseRevision() void {
     // Check Address
     if (@intFromPtr(&base_revision) < 0xffffffff80000000) {
         log("WARNING: Base Revision address seems low/wrong.");
@@ -50,7 +48,9 @@ export fn kmain() callconv(.c) void {
     } else {
         log("Base Revision Supported.");
     }
+}
 
+fn processHhdmResponse() void {
     // Check HHDM
     const hhdm_ptr = @intFromPtr(&hhdm_request);
     if (hhdm_ptr >= 0xffffffff80000000) {
@@ -67,52 +67,53 @@ export fn kmain() callconv(.c) void {
     } else {
         log("HHDM Request Response is NULL.");
     }
+}
 
-    // Volatile read of the response pointer
+fn getFramebuffer() ?*limine.struct_limine_framebuffer {
     const response_ptr = @as(*volatile ?*limine.struct_limine_framebuffer_response, &framebuffer_request.response).*;
-
-    var fb_ptr: [*]u32 = undefined;
-    var fb_width: u64 = 0;
-    var fb_height: u64 = 0;
-    var fb_pitch: u64 = 0;
-
     if (response_ptr) |response| {
         if (response.framebuffer_count >= 1) {
-            // response.framebuffers is a pointer to an array of pointers to framebuffer structs
-            const fbs = response.framebuffers;
-            // We need to access fbs[0]
-            const fb = fbs[0];
-
-            // fb is [*c]struct... so we must dereference it to access fields.
-            // Assuming non-null because count >= 1.
-            fb_ptr = @ptrCast(@alignCast(fb.*.address));
-            fb_width = fb.*.width;
-            fb_height = fb.*.height;
-            fb_pitch = fb.*.pitch;
-            log("Framebuffer obtained from Limine.");
+            return response.framebuffers[0];
         }
-    } else {
-        log("Error: Limine failed to provide a framebuffer.");
+    }
+    return null;
+}
+
+fn drawRedSquare(fb: *limine.struct_limine_framebuffer) void {
+    const fb_ptr: [*]u32 = @ptrCast(@alignCast(fb.address));
+    const fb_width = fb.width;
+    const fb_height = fb.height;
+    const fb_pitch = fb.pitch;
+
+    // White background
+    for (0..fb_height) |y| {
+        for (0..fb_width) |x| {
+            const index = (y * (fb_pitch / 4)) + x;
+            fb_ptr[index] = 0xFFFFFFFF;
+        }
     }
 
-    if (fb_width > 0) {
-        // White background
-        for (0..fb_height) |y| {
-            for (0..fb_width) |x| {
-                const index = (y * (fb_pitch / 4)) + x;
-                fb_ptr[index] = 0xFFFFFFFF;
-            }
+    // Red Square
+    for (100..200) |y| {
+        for (100..200) |x| {
+            const index = (y * (fb_pitch / 4)) + x;
+            fb_ptr[index] = 0xFFFF0000;
         }
+    }
+}
 
-        // Red Square
-        for (100..200) |y| {
-            for (100..200) |x| {
-                const index = (y * (fb_pitch / 4)) + x;
-                fb_ptr[index] = 0xFFFF0000;
-            }
-        }
+export fn kmain() callconv(.c) void {
+    log("Kernel Started");
+
+    checkBaseRevision();
+    processHhdmResponse();
+
+    if (getFramebuffer()) |fb| {
+        log("Framebuffer obtained from Limine.");
+        drawRedSquare(fb);
         log("Drawing done. Hanging.");
     } else {
+        log("Error: Limine failed to provide a framebuffer.");
         log("Hanging.");
     }
 
