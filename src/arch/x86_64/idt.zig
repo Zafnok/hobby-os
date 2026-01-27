@@ -17,6 +17,7 @@ const IdtEntry = packed struct {
     offset_high: u32,
     zero: u32,
 
+    /// Creating a new IDT entry from buffer base offset, segment selector and attributes.
     pub fn init(offset: u64, selector: u16, type_attr: u8) IdtEntry {
         return .{
             .offset_low = @truncate(offset),
@@ -104,6 +105,8 @@ fn getAddr(func: *const fn () callconv(.c) void) u64 {
     return @intFromPtr(func);
 }
 
+/// Initializes the Interrupt Descriptor Table (IDT).
+/// Populates the first 32 entries (exceptions) with ISR stubs and loads the IDT.
 pub fn init() void {
     // 0x8E = Present(1) | Ring0(00) | Gate(0) | InterruptGate(1110)
     const kernel_code_selector = 0x08; // Offset of Kernel Code in GDT
@@ -149,20 +152,21 @@ pub fn init() void {
     load();
 }
 
+/// Loads the IDT into the IDTR register.
 fn load() void {
     const descriptor = IdtDescriptor{
         .size = @sizeOf(@TypeOf(idt_entries)) - 1,
         .offset = @intFromPtr(&idt_entries),
     };
 
-    asm volatile (
-        \\ lidt (%[idtr])
+    asm volatile ("lidt (%[idtr])"
         :
         : [idtr] "r" (&descriptor),
     );
 }
 
-// Global Exception Handler called from ASM
+/// Global Exception Handler called from ASM stubs.
+/// Dumps register state and halts the system upon exception.
 export fn handleInterrupt(frame: *InterruptFrame) callconv(.c) void {
     serial.err("------------------------------------------------");
     serial.err("EXCEPTION CAUGHT");

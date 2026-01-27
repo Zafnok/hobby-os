@@ -20,6 +20,7 @@ const GdtEntry = packed struct {
 const GlobalDescriptorTable = struct {
     entries: [3]GdtEntry, // Null, Kernel Code, Kernel Data
 
+    /// Initializes the Global Descriptor Table (GDT) structure with Null, Kernel Code, and Kernel Data segments.
     pub fn init() GlobalDescriptorTable {
         return .{
             .entries = .{
@@ -39,6 +40,8 @@ const GlobalDescriptorTable = struct {
         };
     }
 
+    /// Loads the GDT into the GDTR register and reloads the segment registers with the new selectors.
+    /// Performs a far return to reload the Code Segment (CS) register.
     pub fn load(self: *GlobalDescriptorTable) void {
         const descriptor = GdtDescriptor{
             .size = @sizeOf(@TypeOf(self.entries)) - 1,
@@ -67,6 +70,7 @@ const GlobalDescriptorTable = struct {
 // Global Instance
 var gdt: GlobalDescriptorTable = undefined;
 
+/// Initializes and loads the GDT.
 pub fn init() void {
     gdt = GlobalDescriptorTable.init();
     gdt.load();

@@ -1,9 +1,10 @@
 const std = @import("std");
-const limine = @cImport({
-    @cInclude("limine.h");
-});
+const limine = @import("limine_import.zig").C;
 const serial = @import("kernel/serial.zig");
+const memory = @import("memory/layout.zig");
 const framebuffer = @import("drivers/framebuffer.zig");
+const pmm = @import("memory/pmm.zig");
+const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
 
@@ -17,9 +18,11 @@ extern var base_revision: [3]u64;
 // Extern HHDM
 extern var hhdm_request: limine.struct_limine_hhdm_request;
 
+/// Checks if the Limine bootloader supports the requested base revision.
+/// Logs an error if not supported.
 fn checkBaseRevision() void {
     // Check Address
-    if (@intFromPtr(&base_revision) < 0xffffffff80000000) {
+    if (@intFromPtr(&base_revision) < memory.HIGHER_HALF_BASE) {
         serial.warn("Base Revision address seems low/wrong.");
     }
 
@@ -37,10 +40,12 @@ fn checkBaseRevision() void {
     }
 }
 
+/// Processes the Higher Half Direct Map (HHDM) response from Limine.
+/// Validates the pointer location and logs the offset if successful.
 fn processHhdmResponse() void {
     // Check HHDM
     const hhdm_ptr = @intFromPtr(&hhdm_request);
-    if (hhdm_ptr >= 0xffffffff80000000) {
+    if (hhdm_ptr >= memory.HIGHER_HALF_BASE) {
         serial.debug("HHDM Ptr is in High Half (Valid Range)");
     } else {
         serial.warn("HHDM Ptr is Low/Invalid!");
@@ -57,6 +62,8 @@ fn processHhdmResponse() void {
     }
 }
 
+/// The kernel entry point called by the startup code.
+/// Initializes GDT, IDT, PMM, and the Framebuffer.
 export fn kmain() callconv(.c) void {
     serial.info("Kernel Started");
 
@@ -64,6 +71,25 @@ export fn kmain() callconv(.c) void {
     serial.info("GDT Initialized");
     idt.init();
     serial.info("IDT Initialized");
+
+    pmm.init();
+
+    // Verification: PMM
+    if (pmm.allocatePage()) |page1| {
+        serial.info("PMM Test: Allocated page at: 0x");
+        serial.printHex(.info, page1);
+
+        if (pmm.allocatePage()) |page2| {
+            serial.info("PMM Test: Allocated page at: 0x");
+            serial.printHex(.info, page2);
+            pmm.freePage(page2);
+            serial.info("PMM Test: Freed page 2");
+        }
+        pmm.freePage(page1);
+        serial.info("PMM Test: Freed page 1");
+    } else {
+        serial.err("PMM Test: Allocation FAILED!");
+    }
 
     // Test IDT: Trigger Breakpoint Exception
     // asm volatile ("int $3");
@@ -73,7 +99,7 @@ export fn kmain() callconv(.c) void {
 
     if (framebuffer.getFramebuffer()) |fb| {
         serial.info("Framebuffer obtained from Limine.");
-        framebuffer.drawRedSquare(fb);
+        fun.drawSmileyFace(fb);
         serial.info("Drawing done. Hanging.");
     } else {
         serial.err("Error: Limine failed to provide a framebuffer.");
@@ -85,6 +111,7 @@ export fn kmain() callconv(.c) void {
     }
 }
 
+/// Shuts down the kernel by entering an infinite loop.
 fn shutdown() noreturn {
     serial.info("Shutting down (hanging loop)");
     // Hang instead of crash to allow inspection
