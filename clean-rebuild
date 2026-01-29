@@ -4,7 +4,7 @@ set -e # Exit immediately if a command fails
 # 1. Clean artifacts
 rm -rf .zig-cache zig-out
 rm -rf dist/kernel
-rm -f my-os.iso
+rm -f *.iso
 
 # 2. Build using Zig Build System (Applies all fixes from build.zig)
 echo "Building Kernel..."
