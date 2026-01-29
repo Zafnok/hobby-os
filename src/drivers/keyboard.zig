@@ -1,6 +1,6 @@
 const io = @import("../arch/x86_64/io.zig");
 const serial = @import("../kernel/serial.zig");
-const pic = @import("../arch/x86_64/pic.zig");
+const apic = @import("../arch/x86_64/apic.zig");
 
 // Circular Buffer
 const BUFFER_SIZE = 256;
@@ -8,35 +8,58 @@ var buffer: [BUFFER_SIZE]u8 = undefined;
 var write_idx: usize = 0;
 var read_idx: usize = 0;
 
-// Scancode Table (Set 1) - minimal (no shift support yet)
+// Scancode Table (Set 1)
 // 0 = Unknown/Special
 const scancode_map = [_]u8{
     0,   27,  '1', '2', '3', '4', '5', '6', '7',  '8', '9', '0',  '-', '=', 8,   9,
     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o',  'p', '[', ']',  10,  0,   'a', 's',
     'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,   '\\', 'z', 'x', 'c', 'v',
-    'b', 'n', 'm', ',', '.', '/', 0,   '*', 0,    ' ',
-    0,
-    // ... F-keys usually follow
+    'b', 'n', 'm', ',', '.', '/', 0,   '*', 0,    ' ', 0,
 };
 
+const scancode_shift_map = [_]u8{
+    0,   27,  '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', 8,   9,
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 10,  0,   'A', 'S',
+    'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0,   '|', 'Z', 'X', 'C', 'V',
+    'B', 'N', 'M', '<', '>', '?', 0,   '*', 0,   ' ', 0,
+};
+
+var shift_pressed: bool = false;
+
 pub fn init() void {
-    // Unmask IRQ1 (Keyboard)
-    pic.unmaskIrq(1);
-    serial.info("Keyboard Initialized (IRQ1 Unmasked)");
+    // Unmask IRQ1 (Keyboard) -> Map to Vector 33
+    // IOAPIC Redirection
+    apic.enableIrq(1, 33);
+    serial.info("Keyboard Initialized (APIC IRQ1 -> Vec 33)");
 }
 
 pub fn handleIrq() void {
     const scancode = io.inb(0x60);
-    serial.debug("Keyboard IRQ! Scancode: ");
-    serial.printHex(.debug, scancode);
 
-    // Ignore Break codes (highest bit set) for now
+    // Ignore Break codes for normal keys, but catch Shift release
     if (scancode & 0x80 != 0) {
+        // Break code (Key Release)
+        const key_released = scancode & 0x7F;
+        if (key_released == 0x2A or key_released == 0x36) {
+            shift_pressed = false;
+        }
+        return;
+    }
+
+    // Make code (Key Press)
+    if (scancode == 0x2A or scancode == 0x36) {
+        shift_pressed = true;
         return;
     }
 
     if (scancode < scancode_map.len) {
-        const char = scancode_map[scancode];
+        var char: u8 = 0;
+        if (shift_pressed) {
+            char = scancode_shift_map[scancode];
+        } else {
+            char = scancode_map[scancode];
+        }
+
         if (char != 0) {
             push(char);
             serial.debug("Key Pressed: ");

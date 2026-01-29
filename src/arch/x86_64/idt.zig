@@ -1,6 +1,6 @@
 const std = @import("std");
 const serial = @import("../../kernel/serial.zig");
-const pic = @import("pic.zig");
+const apic = @import("apic.zig");
 const keyboard = @import("../../drivers/keyboard.zig");
 
 // Interrupt Descriptor Table Pointer (IDTR)
@@ -214,8 +214,8 @@ export fn handleInterrupt(frame: *InterruptFrame) callconv(.c) void {
             keyboard.handleIrq();
         }
 
-        // Send EOI to PIC (subtract 32 to get IRQ number)
-        pic.sendEoi(@intCast(frame.int_num - 32));
+        // Send EOI to Local APIC
+        apic.sendEoi();
         return;
     }
 

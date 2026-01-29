@@ -36,6 +36,22 @@ This project has strict versioning requirements to ensure architectural stabilit
 *   **I/O Model**: Fully Asynchronous.
 *   **Scheduling**: Tickless/Dynamic.
 
+## Feature Roadmap
+
+- [x] **PMM (Physical Memory Manager)**: Basic page allocation.
+- [x] **VMM (Virtual Memory Manager)**: Higher Half Direct Map, Page Tables.
+- [x] **Framebuffer**: Basic drawing primitives (points, rects, fill).
+- [x] **Font Rendering**: 8x8 Bitmap font (ASCII 32-127).
+- [x] **Keyboard**: Basic Scancode Set 1 polling.
+- [/] **Shift Key Support**: (In Progress) Capital letters & symbols.
+- [ ] **APIC**: Modern interrupt controller (Replacing legacy PIC).
+- [ ] **ACPI / MADT Parsing**: Properly detecting hardware configuration (APIC bases, multiple cores).
+- [ ] **Heap Allocator**: Kernel heap support.
+- [ ] **File System**: Basic read-only FS support.
+- [ ] **ELF Loader**: Loading userspace programs.
+- [ ] **User Mode (Ring 3)**: Switching to/from userspace.
+- [ ] **Minecraft**: Download and boot the jar (The Ultimate Goal).
+
 ## Hardware Compatibility
 
 CRITICAL: This OS relies on server-grade CPU instructions. Consumer hardware as of 2026 is **largely unsupported**.

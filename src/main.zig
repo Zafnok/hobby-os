@@ -8,7 +8,7 @@ pub const heap = @import("memory/heap.zig");
 const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
-const pic = @import("arch/x86_64/pic.zig");
+const apic = @import("arch/x86_64/apic.zig");
 const pks = @import("arch/x86_64/pks.zig");
 const vmm = @import("memory/vmm.zig");
 
@@ -79,11 +79,13 @@ pub fn initKernel() void {
 
     pks.init();
 
-    pic.init();
-    serial.info("PIC Initialized (Mapped to 32/40)");
-
     pmm.init();
     vmm.init();
+
+    apic.init();
+    serial.info("APIC Initialized (LAPIC @ 0xFEE00000, IOAPIC @ 0xFEC00000)");
+
+    heap.init();
     // pmm.init() logs its own completion
 
     heap.init();
