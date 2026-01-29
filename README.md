@@ -22,6 +22,20 @@ We have abandoned the traditional 1000Hz polling interrupt. The scheduler operat
 *   **Energy Efficiency**: The CPU wakes only when there is work to do.
 *   **Precision**: Scheduling events are driven by precise hardware timers or interrupt events rather than arbitrary polling intervals.
 
+## Development Requirements
+
+This project has strict versioning requirements to ensure architectural stability.
+
+| Tool | Version | Requirement |
+| :--- | :--- | :--- |
+| **Zig** | `0.15.2` | **Strict**. Do not use older/newer syntax. |
+| **Limine** | `10.6.3` | **Strict**. |
+
+**Core Constraints:**
+*   **Architecture**: Single Address Space Operating System (SASOS) using PKS.
+*   **I/O Model**: Fully Asynchronous.
+*   **Scheduling**: Tickless/Dynamic.
+
 ## Hardware Compatibility
 
 CRITICAL: This OS relies on server-grade CPU instructions. Consumer hardware as of 2026 is **largely unsupported**.

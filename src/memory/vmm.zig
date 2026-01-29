@@ -21,6 +21,19 @@ const PTE_HUGE: u64 = 1 << 7; // 2MB or 1GB page
 const PTE_GLOBAL: u64 = 1 << 8;
 const PTE_NX: u64 = 1 << 63;
 
+// Address Translation Constants
+const PT_INDEX_BITS: u6 = 9;
+const PT_INDEX_MASK: u64 = 0x1FF; // (1 << 9) - 1
+
+// Page Map Level 4
+const PML4_SHIFT: u6 = 39;
+// Page Directory Pointer Table
+const PDPT_SHIFT: u6 = 30;
+// Page Directory
+const PD_SHIFT: u6 = 21;
+// Page Table
+const PT_SHIFT: u6 = 12;
+
 // PKS Key shift (Bits 59-62)
 const PTE_PKS_SHIFT: u64 = 59;
 const PTE_PKS_MASK: u64 = 0xF << PTE_PKS_SHIFT;
@@ -67,10 +80,10 @@ fn allocPageTable() ?u64 {
 
 /// Maps a virtual page to a physical page in the kernel PML4 (4KB)
 pub fn mapPage(virt_addr: u64, phys_addr: u64, flags: u64, pks_key: u4) !void {
-    const pml4_idx = (virt_addr >> 39) & 0x1FF;
-    const pdpt_idx = (virt_addr >> 30) & 0x1FF;
-    const pd_idx = (virt_addr >> 21) & 0x1FF;
-    const pt_idx = (virt_addr >> 12) & 0x1FF;
+    const pml4_idx = (virt_addr >> PML4_SHIFT) & PT_INDEX_MASK;
+    const pdpt_idx = (virt_addr >> PDPT_SHIFT) & PT_INDEX_MASK;
+    const pd_idx = (virt_addr >> PD_SHIFT) & PT_INDEX_MASK;
+    const pt_idx = (virt_addr >> PT_SHIFT) & PT_INDEX_MASK;
 
     // 1. Traverse PML4 -> PDPT
     if ((kernel_pml4[pml4_idx] & PTE_PRESENT) == 0) {
@@ -109,9 +122,9 @@ pub fn mapPage(virt_addr: u64, phys_addr: u64, flags: u64, pks_key: u4) !void {
 
 /// Maps a 2MB Huge Page in the kernel PML4
 pub fn mapHugePage(virt_addr: u64, phys_addr: u64, flags: u64, pks_key: u4) !void {
-    const pml4_idx = (virt_addr >> 39) & 0x1FF;
-    const pdpt_idx = (virt_addr >> 30) & 0x1FF;
-    const pd_idx = (virt_addr >> 21) & 0x1FF;
+    const pml4_idx = (virt_addr >> PML4_SHIFT) & PT_INDEX_MASK;
+    const pdpt_idx = (virt_addr >> PDPT_SHIFT) & PT_INDEX_MASK;
+    const pd_idx = (virt_addr >> PD_SHIFT) & PT_INDEX_MASK;
     // No PT index for Huge Pages, we stop at PD
 
     // 1. Traverse PML4 -> PDPT
