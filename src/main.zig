@@ -2,12 +2,13 @@ const std = @import("std");
 const limine = @import("limine_import.zig").C;
 pub const serial = @import("kernel/serial.zig");
 const memory = @import("memory/layout.zig");
-const framebuffer = @import("drivers/framebuffer.zig");
+const framebuffer = @import("drivers/graphics/framebuffer.zig");
 pub const pmm = @import("memory/pmm.zig");
 pub const heap = @import("memory/heap.zig");
 const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
+const pic = @import("arch/x86_64/pic.zig");
 const pks = @import("arch/x86_64/pks.zig");
 const vmm = @import("memory/vmm.zig");
 
@@ -78,6 +79,9 @@ pub fn initKernel() void {
 
     pks.init();
 
+    pic.init();
+    serial.info("PIC Initialized (Mapped to 32/40)");
+
     pmm.init();
     vmm.init();
     // pmm.init() logs its own completion
@@ -115,15 +119,36 @@ fn kmain_impl() callconv(.c) void {
     }
     // -------------------------
 
+    serial.info("Enabling Interrupts...");
+    asm volatile ("sti");
+
     // Check for Framebuffer and run demo if available
     if (framebuffer.getFramebuffer()) |fb| {
         serial.info("Framebuffer available. Running smiley demo...");
         fun.drawSmileyFace(fb);
-        serial.info("Demo complete.");
+        serial.info("Smiley Demo complete. Waiting 1s...");
+
+        // Delay ~1s
+        const io = @import("arch/x86_64/io.zig");
+        var i: usize = 0;
+        // Increase loop significantly for QEMU/Virt
+        while (i < 50_000_000) : (i += 1) {
+            io.wait();
+        }
+
+        serial.info("Transitioning to Keyboard Demo...");
+
+        // Initialize keyboard if not already (it is idempotent safely?)
+        // Yes, init() unmasks IRQ.
+        const keyboard = @import("drivers/keyboard.zig");
+        keyboard.init();
+
+        fun.runKeyboardDemo(fb);
     } else {
-        serial.warn("No Framebuffer found. Skipping demo.");
+        serial.warn("No Framebuffer found. Skipping demos.");
     }
 
+    // Fallback infinite loop if no framebuffer
     while (true) {
         asm volatile ("hlt");
     }

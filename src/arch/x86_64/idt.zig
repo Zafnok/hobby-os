@@ -1,5 +1,7 @@
 const std = @import("std");
 const serial = @import("../../kernel/serial.zig");
+const pic = @import("pic.zig");
+const keyboard = @import("../../drivers/keyboard.zig");
 
 // Interrupt Descriptor Table Pointer (IDTR)
 const IdtDescriptor = packed struct {
@@ -99,6 +101,22 @@ extern fn isr_stub_28() void;
 extern fn isr_stub_29() void;
 extern fn isr_stub_30() void;
 extern fn isr_stub_31() void;
+extern fn isr_stub_32() void;
+extern fn isr_stub_33() void;
+extern fn isr_stub_34() void;
+extern fn isr_stub_35() void;
+extern fn isr_stub_36() void;
+extern fn isr_stub_37() void;
+extern fn isr_stub_38() void;
+extern fn isr_stub_39() void;
+extern fn isr_stub_40() void;
+extern fn isr_stub_41() void;
+extern fn isr_stub_42() void;
+extern fn isr_stub_43() void;
+extern fn isr_stub_44() void;
+extern fn isr_stub_45() void;
+extern fn isr_stub_46() void;
+extern fn isr_stub_47() void;
 
 // Helper to get function address
 fn getAddr(func: *const fn () callconv(.c) void) u64 {
@@ -149,6 +167,24 @@ pub fn init() void {
     idt_entries[30] = IdtEntry.init(getAddr(isr_stub_30), kernel_code_selector, idt_attr);
     idt_entries[31] = IdtEntry.init(getAddr(isr_stub_31), kernel_code_selector, idt_attr);
 
+    // IRQs (32-47)
+    idt_entries[32] = IdtEntry.init(getAddr(isr_stub_32), kernel_code_selector, idt_attr);
+    idt_entries[33] = IdtEntry.init(getAddr(isr_stub_33), kernel_code_selector, idt_attr);
+    idt_entries[34] = IdtEntry.init(getAddr(isr_stub_34), kernel_code_selector, idt_attr);
+    idt_entries[35] = IdtEntry.init(getAddr(isr_stub_35), kernel_code_selector, idt_attr);
+    idt_entries[36] = IdtEntry.init(getAddr(isr_stub_36), kernel_code_selector, idt_attr);
+    idt_entries[37] = IdtEntry.init(getAddr(isr_stub_37), kernel_code_selector, idt_attr);
+    idt_entries[38] = IdtEntry.init(getAddr(isr_stub_38), kernel_code_selector, idt_attr);
+    idt_entries[39] = IdtEntry.init(getAddr(isr_stub_39), kernel_code_selector, idt_attr);
+    idt_entries[40] = IdtEntry.init(getAddr(isr_stub_40), kernel_code_selector, idt_attr);
+    idt_entries[41] = IdtEntry.init(getAddr(isr_stub_41), kernel_code_selector, idt_attr);
+    idt_entries[42] = IdtEntry.init(getAddr(isr_stub_42), kernel_code_selector, idt_attr);
+    idt_entries[43] = IdtEntry.init(getAddr(isr_stub_43), kernel_code_selector, idt_attr);
+    idt_entries[44] = IdtEntry.init(getAddr(isr_stub_44), kernel_code_selector, idt_attr);
+    idt_entries[45] = IdtEntry.init(getAddr(isr_stub_45), kernel_code_selector, idt_attr);
+    idt_entries[46] = IdtEntry.init(getAddr(isr_stub_46), kernel_code_selector, idt_attr);
+    idt_entries[47] = IdtEntry.init(getAddr(isr_stub_47), kernel_code_selector, idt_attr);
+
     load();
 }
 
@@ -168,6 +204,21 @@ fn load() void {
 /// Global Exception Handler called from ASM stubs.
 /// Dumps register state and halts the system upon exception.
 export fn handleInterrupt(frame: *InterruptFrame) callconv(.c) void {
+    // IRQ Handling
+    if (frame.int_num >= 32 and frame.int_num <= 47) {
+        // serial.debug("IRQ Caught: ");
+        // serial.printHex(.debug, frame.int_num);
+
+        // Handle specific IRQs
+        if (frame.int_num == 33) {
+            keyboard.handleIrq();
+        }
+
+        // Send EOI to PIC (subtract 32 to get IRQ number)
+        pic.sendEoi(@intCast(frame.int_num - 32));
+        return;
+    }
+
     serial.err("------------------------------------------------");
     serial.err("EXCEPTION CAUGHT");
     serial.err("------------------------------------------------");

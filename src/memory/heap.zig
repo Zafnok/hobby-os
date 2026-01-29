@@ -4,7 +4,7 @@ const vmm = @import("vmm.zig");
 const serial = @import("../kernel/serial.zig");
 
 // Constants
-const PAGE_SIZE: usize = 4096;
+const PAGE_SIZE = pmm.PAGE_SIZE;
 const MIN_BLOCK_SIZE: usize = 32;
 // The largest block size we handle in the free lists.
 // Anything larger will be rounded up to whole pages and allocated directly from PMM.

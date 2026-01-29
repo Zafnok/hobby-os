@@ -12,7 +12,7 @@ var bitmap_phys_base: u64 = 0;
 var last_used_index: usize = 0;
 var total_pages: usize = 0;
 
-const PAGE_SIZE: u64 = 4096;
+pub const PAGE_SIZE: u64 = 4096;
 
 /// Initializes the Physical Memory Manager (PMM).
 /// Parses the Limine memory map, sets up the allocation bitmap, and reserves kernel/used memory.

@@ -48,3 +48,9 @@ pub fn inl(port: u16) u32 {
         : [port] "{dx}" (port),
     );
 }
+
+/// Waits a very small amount of time (1-4 microseconds).
+/// Useful for I/O delays to let hardware catch up.
+pub fn wait() void {
+    outb(0x80, 0);
+}

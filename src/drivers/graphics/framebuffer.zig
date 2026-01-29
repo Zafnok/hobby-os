@@ -1,5 +1,5 @@
 const std = @import("std");
-const limine = @import("../limine_import.zig").C;
+const limine = @import("../../limine_import.zig").C;
 
 extern var framebuffer_request: limine.struct_limine_framebuffer_request;
 
@@ -29,7 +29,7 @@ pub fn putPixel(fb: *limine.struct_limine_framebuffer, x: u64, y: u64, color: u3
 
 /// Draws a filled rectangle at (x, y) with the specified width, height, and color.
 pub fn drawRect(fb: *limine.struct_limine_framebuffer, x: u64, y: u64, width: u64, height: u64, color: u32) void {
-    const serial = @import("../kernel/serial.zig");
+    const serial = @import("../../kernel/serial.zig");
     // Sanity check
     if (fb.address == null) {
         serial.err("FATAL: Framebuffer address is NULL in drawRect");
@@ -47,7 +47,7 @@ pub fn drawRect(fb: *limine.struct_limine_framebuffer, x: u64, y: u64, width: u6
 
 /// Fills the entire framebuffer with a single color.
 pub fn fill(fb: *limine.struct_limine_framebuffer, color: u32) void {
-    const serial = @import("../kernel/serial.zig");
+    const serial = @import("../../kernel/serial.zig");
     // Sanity check
     if (fb.address == null) {
         serial.err("FATAL: Framebuffer address is NULL in fill");
@@ -93,7 +93,7 @@ pub fn fillCircle(fb: *limine.struct_limine_framebuffer, cx: u64, cy: u64, radiu
 }
 
 test "Framebuffer Access" {
-    const serial = @import("../kernel/serial.zig");
+    const serial = @import("../../kernel/serial.zig");
     const fb = getFramebuffer();
     if (fb) |f| {
         try std.testing.expect(f.width > 0);

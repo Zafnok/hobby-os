@@ -1,6 +1,6 @@
 const std = @import("std");
 const limine = @import("../limine_import.zig").C;
-const framebuffer = @import("../drivers/framebuffer.zig");
+const framebuffer = @import("../drivers/graphics/framebuffer.zig");
 
 /// Draws a yellow smiley face on the framebuffer.
 /// Clears the screen to white first, then draws the face, eyes, and mouth.
@@ -41,6 +41,50 @@ pub fn drawSmileyFace(fb: *limine.struct_limine_framebuffer) void {
                 if (my > cy + 15) {
                     framebuffer.putPixel(fb, mx, my, 0xFF000000);
                 }
+            }
+        }
+    }
+}
+
+/// Runs the keyboard echo demo.
+/// This function enters an infinite loop.
+pub fn runKeyboardDemo(fb: *limine.struct_limine_framebuffer) noreturn {
+    const font = @import("../drivers/graphics/font.zig");
+    const keyboard = @import("../drivers/keyboard.zig");
+
+    // Clear screen first (optional, but good for transition)
+    framebuffer.fill(fb, 0xFF000000); // Black background
+
+    var cursor_x: u64 = 10;
+    var cursor_y: u64 = 10;
+
+    while (true) {
+        asm volatile ("hlt");
+
+        // Process Input
+        while (keyboard.pop()) |char| {
+            // Handle newline/enter
+            if (char == '\n' or char == 10) {
+                cursor_x = 10;
+                cursor_y += 10;
+            }
+            // Handle Backspace (ASCII 8)
+            else if (char == 8) {
+                if (cursor_x > 10) {
+                    cursor_x -= 9;
+                    // Overwrite with black (background color)
+                    // Width 9 (8 char + 1 padding), Height 8
+                    framebuffer.drawRect(fb, cursor_x, cursor_y, 9, 8, 0xFF000000);
+                }
+            } else {
+                font.drawChar(fb, cursor_x, cursor_y, char, 0xFFFFFFFF); // White text
+                cursor_x += 9;
+            }
+
+            // Wrap
+            if (cursor_x >= fb.width - 10) {
+                cursor_x = 10;
+                cursor_y += 10;
             }
         }
     }
