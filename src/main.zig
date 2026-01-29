@@ -4,6 +4,7 @@ pub const serial = @import("kernel/serial.zig");
 const memory = @import("memory/layout.zig");
 const framebuffer = @import("drivers/framebuffer.zig");
 pub const pmm = @import("memory/pmm.zig");
+pub const heap = @import("memory/heap.zig");
 const fun = @import("fun/demos.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
@@ -80,6 +81,8 @@ pub fn initKernel() void {
     pmm.init();
     vmm.init();
     // pmm.init() logs its own completion
+
+    heap.init();
 }
 
 /// The main kernel entry point implementation.
@@ -90,6 +93,27 @@ fn kmain_impl() callconv(.c) void {
 
     checkBaseRevision();
     processHhdmResponse();
+
+    // --- Heap Verification ---
+    {
+        serial.info("Verification: Testing Kernel Heap...");
+        var list = std.ArrayList(u32).initCapacity(heap.getAllocator(), 4) catch {
+            serial.err("Heap: Failed to initCapacity");
+            return;
+        };
+        defer list.deinit(heap.getAllocator());
+
+        list.append(heap.getAllocator(), 123) catch serial.err("Heap: Failed append 1");
+        list.append(heap.getAllocator(), 456) catch serial.err("Heap: Failed append 2");
+        list.append(heap.getAllocator(), 789) catch serial.err("Heap: Failed append 3");
+
+        if (list.items.len == 3 and list.items[2] == 789) {
+            serial.info("Verification: Heap Works! ArrayList created and populated.");
+        } else {
+            serial.err("Verification: Heap Failed sanity check.");
+        }
+    }
+    // -------------------------
 
     // Check for Framebuffer and run demo if available
     if (framebuffer.getFramebuffer()) |fb| {

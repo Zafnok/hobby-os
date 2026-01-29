@@ -168,55 +168,82 @@ fn freeRegion(base: u64, length: u64) void {
 /// Allocates a single page of physical memory.
 /// Returns the physical address of the allocated page, or null if OOM.
 pub fn allocatePage() ?u64 {
-    // Determine where to start searching
-    // We can use a roving pointer (last_used_index) to speed up sequential allocations
-    var i = last_used_index;
+    return allocatePages(1);
+}
 
-    // First pass: from last_used to end
-    while (i < total_pages) : (i += 1) {
-        if (!testBit(i)) {
-            setBit(i);
-            last_used_index = i + 1;
-            return @as(u64, i) * PAGE_SIZE;
-        }
+/// Allocates `count` contiguous pages of physical memory.
+/// Returns the physical address of the first page, or null if OOM.
+pub fn allocatePages(count: usize) ?u64 {
+    if (count == 0) return null;
+
+    // Search wrapper to handle wrap-around
+    if (findFreeRange(last_used_index, total_pages, count)) |idx| {
+        markUsed(idx, count);
+        last_used_index = idx + count;
+        return @as(u64, idx) * PAGE_SIZE;
     }
 
-    // Second pass: from 0 to last_used
-    i = 0;
-    while (i < last_used_index) : (i += 1) {
-        if (!testBit(i)) {
-            setBit(i);
-            last_used_index = i + 1;
-            return @as(u64, i) * PAGE_SIZE;
-        }
+    if (findFreeRange(0, last_used_index, count)) |idx| {
+        markUsed(idx, count);
+        last_used_index = idx + count;
+        return @as(u64, idx) * PAGE_SIZE;
     }
 
     return null; // OOM
 }
 
+/// Helper to find a range of free bits.
+fn findFreeRange(start_idx: usize, end_limit: usize, count: usize) ?usize {
+    var i = start_idx;
+    while (i <= end_limit -| count) : (i += 1) { // -| is saturating sub, checking bounds
+        // Check if [i ... i+count] are all free
+        var all_free = true;
+        var j: usize = 0;
+        while (j < count) : (j += 1) {
+            if (testBit(i + j)) {
+                all_free = false;
+                // Optimization: Skip ahead
+                i += j; // Outer loop does i+=1, so effectively i = i + j + 1
+                break;
+            }
+        }
+        if (all_free) return i;
+    }
+    return null;
+}
+
+/// Helper to mark a range as used.
+fn markUsed(start_idx: usize, count: usize) void {
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        setBit(start_idx + i);
+    }
+}
+
 /// Frees a previously allocated page of physical memory given its physical address.
 pub fn freePage(phys_addr: u64) void {
-    const page_idx = phys_addr / PAGE_SIZE;
-    if (page_idx < total_pages) {
-        clearBit(page_idx);
-        // Optimization: Reset last_used_index?
-        // Usually safer to not move it backwards excessively,
-        // but if we freed something lower, we could hint it.
-        // For now, keep it simple.
-        if (page_idx < last_used_index) {
-            last_used_index = page_idx;
+    freePages(phys_addr, 1);
+}
+
+/// Frees `count` contiguous pages starting at `phys_addr`.
+pub fn freePages(phys_addr: u64, count: usize) void {
+    const start_idx = phys_addr / PAGE_SIZE;
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const idx = start_idx + i;
+        if (idx < total_pages) {
+            clearBit(idx);
         }
+    }
+
+    // Hint optimization
+    if (start_idx < last_used_index) {
+        last_used_index = start_idx;
     }
 }
 
 test "PMM Allocation and Free" {
-    // Note: initKernel() must be called by the runner before this test,
-    // but the test runner handles that globally.
-    // Ensure we are initialized? pmm.init() might be called by initKernel.
-    // If not, we might need to call it?
-    // Logic: test runner calls initKernel -> pmm.init(). So we are good.
-
-    // We allocation
+    // 1. Verify Basic Page Allocation
     const page1 = allocatePage();
     try std.testing.expect(page1 != null);
     serial.info("Test: Allocated Page 1");

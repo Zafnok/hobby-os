@@ -46,7 +46,7 @@ const HUGE_PAGE_SIZE: u64 = 2 * 1024 * 1024; // 2MB
 var kernel_pml4: *[512]u64 = undefined;
 
 /// Gets the HHDM offset from the Limine response
-fn getHhdmOffset() u64 {
+pub fn getHhdmOffset() u64 {
     const resp = hhdm_request.response;
     if (resp == null) {
         serial.err("VMM: HHDM Response missing!");
