@@ -13,6 +13,7 @@ const apic = @import("arch/x86_64/apic.zig");
 const pks = @import("arch/x86_64/pks.zig");
 const vmm = @import("memory/vmm.zig");
 pub const elf = @import("loaders/elf.zig");
+const table = @import("kernel/table.zig");
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
@@ -176,6 +177,7 @@ test {
     std.testing.refAllDecls(pmm);
     std.testing.refAllDecls(framebuffer);
     std.testing.refAllDecls(elf);
+    std.testing.refAllDecls(table);
 }
 
 /// Shuts down the kernel by entering an infinite loop.
