@@ -50,8 +50,56 @@ pub fn build(b: *std.Build) void {
     configureKernel(b, kernel);
     b.installArtifact(kernel);
 
+    // ======================================
+    // Test ELF (User Mode App)
+    // ======================================
+    const test_elf_mod = b.createModule(.{
+        .root_source_file = null, // Assembly only
+        .target = target,
+        .optimize = optimize,
+        .code_model = .small, // User mode
+        .pic = false,
+    });
+
+    const test_elf = b.addExecutable(.{
+        .name = "test.elf", // becomes test.elf
+        .root_module = test_elf_mod,
+    });
+    test_elf.addAssemblyFile(b.path("src/demos/test_app.s"));
+    test_elf.entry = .disabled; // Let linker find _start
+    // Force specific address to avoid collision with kernel (kernel is at 0xFFFFFFFF80000000)
+    // We put this at 0x400000
+    test_elf.linker_script = null; // Use default
+    // We need to pass linker args
+    test_elf.setLinkerScript(b.path("src/demos/test.ld"));
+
+    const install_test_elf = b.addInstallArtifact(test_elf, .{
+        .dest_dir = .{ .override = .{ .custom = "../dist" } },
+    });
+    b.getInstallStep().dependOn(&install_test_elf.step);
+    // Actually easier to just valid install and rely on 'zig build' install phase,
+    // but our ISO builder uses 'dist/'.
+    // Let's rely on standard install, but we need to move it to dist/ or making sure dist/ includes bin/
+    // Current ISO cmd: 'xorriso ... dist/'
+    // So 'dist/' is the ISO root.
+    // 'kernel' is installed to 'zig-out/bin/kernel'.
+    // 'cp_cmd' copies 'zig-out/bin/kernel' (via artifact) to 'dist/kernel'.
+    // We should do the same for test.elf.
+
     // Run Step
     const run_cmd = b.addSystemCommand(&.{
+        "cp",
+    });
+    run_cmd.addArtifactArg(kernel);
+    run_cmd.addArg("dist/kernel");
+
+    // REDUNDANT COPY REMOVED
+    // const cp_elf_prod = b.addSystemCommand(&.{"cp"});
+    // cp_elf_prod.addArtifactArg(test_elf);
+    // cp_elf_prod.addArg("dist/test.elf");
+    // run_cmd.step.dependOn(&cp_elf_prod.step);
+
+    const qemu_cmd = b.addSystemCommand(&.{
         "qemu-system-x86_64",
         "-M",
         "q35",
@@ -67,23 +115,63 @@ pub fn build(b: *std.Build) void {
         "512M",
         "-cpu",
         "max,+pks",
-        "-kernel",
     });
-    run_cmd.addArtifactArg(kernel);
-    run_cmd.step.dependOn(b.getInstallStep());
+    // qemu_cmd.addArg("dist/kernel"); // Load from dist - REMOVED for ISO boot
+
+    // ISO Logic for production run?
+    // The current run command uses -kernel dist/kernel directly?
+    // Wait, the original code had:
+    // run_cmd.addArtifactArg(kernel);
+    // qemu -kernel <artifact>
+    // But now we need modules. Limine -kernel direct loading assumes the kernel is multiboot or similar?
+    // Limine works with -kernel?
+    // Actually Limine bootloader is usually on ISO.
+    // If we run `qemu ... -kernel kernel`, QEMU uses its internal loader (multiboot usually).
+    // Our kernel is Limine protocol.
+    // Limine protocol kernels CANNOT be booted by QEMU -kernel directly unless QEMU supports Limine (it doesn't).
+
+    // Wait, the existing `run_cmd` provided:
+    // "-kernel"
+    // run_cmd.addArtifactArg(kernel);
+    // This implies the user WAS booting with -kernel.
+    // If this worked, maybe QEMU 8+ supports it? Or they are using multiboot-compat?
+    // Our kernel `entry.S` looks like Limine.
+
+    // If we want modules, we MUST use ISO with Limine.
+    // So we should update `run` step to build ISO like `test` step does.
+
+    // Let's update `run` to generate `os.iso` and boot it.
+
+    const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", "os.iso", "dist/" });
+    iso_cmd.step.dependOn(&run_cmd.step);
+
+    const limine_deploy = b.addSystemCommand(&.{ "./limine", "bios-install", "os.iso" });
+    limine_deploy.step.dependOn(&iso_cmd.step);
+
+    qemu_cmd.addArgs(&.{ "-cdrom", "os.iso", "-boot", "d" });
+    // Remove -kernel arg if we use cdrom
+    // But original `run_cmd` (now `qemu_cmd`) had -kernel.
+    // I am converting it.
+
+    qemu_cmd.step.dependOn(&limine_deploy.step);
+
+    run_cmd.step.dependOn(b.getInstallStep()); // Ensure we installed everything
 
     const run_step = b.step("run", "Run the kernel in QEMU");
-    run_step.dependOn(&run_cmd.step);
+    run_step.dependOn(&qemu_cmd.step);
 
     // ======================================
     // Test Kernel Build (PKS Enabled - Default)
     // ======================================
-    createTestStep(b, target, optimize, options, true, "test", "Run kernel tests (PKS Enabled)");
+    // ======================================
+    // Test Kernel Build (PKS Enabled - Default)
+    // ======================================
+    createTestStep(b, target, optimize, options, true, "test", "Run kernel tests (PKS Enabled)", test_elf);
 
     // ======================================
     // Test Kernel Build (PKS Disabled)
     // ======================================
-    createTestStep(b, target, optimize, options_no_pks, false, "test-no-pks", "Run kernel tests (PKS Disabled)");
+    createTestStep(b, target, optimize, options_no_pks, false, "test-no-pks", "Run kernel tests (PKS Disabled)", test_elf);
 }
 
 fn createTestStep(
@@ -94,6 +182,7 @@ fn createTestStep(
     enable_pks: bool,
     step_name: []const u8,
     step_desc: []const u8,
+    test_elf: *std.Build.Step.Compile,
 ) void {
     const test_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -118,6 +207,15 @@ fn createTestStep(
     cp_cmd.addArtifactArg(kernel_test);
     // Limine config expects /kernel, so we must overwrite it
     cp_cmd.addArg("dist/kernel");
+
+    // Copy test.elf
+    const cp_elf = b.addSystemCommand(&.{"cp"});
+    cp_elf.addArtifactArg(test_elf);
+    cp_elf.addArg("dist/test.elf");
+    cp_elf.step.dependOn(&test_elf.step); // Ensure built
+    cp_cmd.step.dependOn(&cp_elf.step); // Chain it
+
+    // Line removed
 
     // Fix: xorriso needs the dist folder to exist and contain what we want
     // We reuse 'dist/' but we need to make sure we don't overwrite if running in parallel.

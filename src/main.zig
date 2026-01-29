@@ -5,12 +5,14 @@ const memory = @import("memory/layout.zig");
 const framebuffer = @import("drivers/graphics/framebuffer.zig");
 pub const pmm = @import("memory/pmm.zig");
 pub const heap = @import("memory/heap.zig");
-const fun = @import("fun/demos.zig");
+const demo_smiley = @import("demos/smiley.zig");
+const demo_shell = @import("demos/shell.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
 const apic = @import("arch/x86_64/apic.zig");
 const pks = @import("arch/x86_64/pks.zig");
 const vmm = @import("memory/vmm.zig");
+pub const elf = @import("loaders/elf.zig");
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
@@ -21,6 +23,9 @@ extern var base_revision: [3]u64;
 
 // Extern HHDM
 extern var hhdm_request: limine.struct_limine_hhdm_request;
+
+// Module Request
+extern var module_request: limine.struct_limine_module_request;
 
 /// Checks if the Limine bootloader supports the requested base revision.
 /// Logs an error if not supported.
@@ -127,7 +132,7 @@ fn kmain_impl() callconv(.c) void {
     // Check for Framebuffer and run demo if available
     if (framebuffer.getFramebuffer()) |fb| {
         serial.info("Framebuffer available. Running smiley demo...");
-        fun.drawSmileyFace(fb);
+        demo_smiley.drawSmileyFace(fb);
         serial.info("Smiley Demo complete. Waiting 1s...");
 
         // Delay ~1s
@@ -145,7 +150,10 @@ fn kmain_impl() callconv(.c) void {
         const keyboard = @import("drivers/keyboard.zig");
         keyboard.init();
 
-        fun.runKeyboardDemo(fb);
+        // Check for modules
+        const modules_resp = @as(*volatile ?*limine.struct_limine_module_response, &module_request.response).*;
+
+        demo_shell.runShell(fb, modules_resp);
     } else {
         serial.warn("No Framebuffer found. Skipping demos.");
     }
@@ -167,6 +175,7 @@ test {
     // Force inclusions of tests in imported modules
     std.testing.refAllDecls(pmm);
     std.testing.refAllDecls(framebuffer);
+    std.testing.refAllDecls(elf);
 }
 
 /// Shuts down the kernel by entering an infinite loop.

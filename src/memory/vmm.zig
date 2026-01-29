@@ -10,16 +10,17 @@ pub extern var executable_address_request: limine.struct_limine_executable_addre
 pub extern var memmap_request: limine.struct_limine_memmap_request;
 
 // Page Table Flags
-const PTE_PRESENT: u64 = 1 << 0;
-const PTE_RW: u64 = 1 << 1;
-const PTE_USER: u64 = 1 << 2;
-const PTE_WRITE_THROUGH: u64 = 1 << 3;
-const PTE_NO_CACHE: u64 = 1 << 4;
-const PTE_ACCESSED: u64 = 1 << 5;
-const PTE_DIRTY: u64 = 1 << 6;
-const PTE_HUGE: u64 = 1 << 7; // 2MB or 1GB page
-const PTE_GLOBAL: u64 = 1 << 8;
-const PTE_NX: u64 = 1 << 63;
+// Page Table Flags
+pub const PTE_PRESENT: u64 = 1 << 0;
+pub const PTE_RW: u64 = 1 << 1;
+pub const PTE_USER: u64 = 1 << 2;
+pub const PTE_WRITE_THROUGH: u64 = 1 << 3;
+pub const PTE_NO_CACHE: u64 = 1 << 4;
+pub const PTE_ACCESSED: u64 = 1 << 5;
+pub const PTE_DIRTY: u64 = 1 << 6;
+pub const PTE_HUGE: u64 = 1 << 7; // 2MB or 1GB page
+pub const PTE_GLOBAL: u64 = 1 << 8;
+pub const PTE_NX: u64 = 1 << 63;
 
 // Address Translation Constants
 const PT_INDEX_BITS: u6 = 9;

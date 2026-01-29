@@ -3,7 +3,7 @@ set -e # Exit immediately if a command fails
 
 # 1. Clean artifacts
 rm -rf .zig-cache zig-out
-rm -rf dist/kernel
+rm -rf dist/kernel dist/test.elf dist/test dist/kernel_test
 rm -f *.iso
 
 # 2. Build using Zig Build System (Applies all fixes from build.zig)

@@ -1,6 +1,6 @@
 .{
     .name = .os_dev,
-    .version = "0.3.0",
+    .version = "0.4.0",
     .paths = .{""},
     .fingerprint = 0x8b4eb1d056df05c0,
 }
