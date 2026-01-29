@@ -77,27 +77,20 @@ pub fn build(b: *std.Build) void {
         .dest_dir = .{ .override = .{ .custom = "../dist" } },
     });
     b.getInstallStep().dependOn(&install_test_elf.step);
-    // Actually easier to just valid install and rely on 'zig build' install phase,
-    // but our ISO builder uses 'dist/'.
-    // Let's rely on standard install, but we need to move it to dist/ or making sure dist/ includes bin/
-    // Current ISO cmd: 'xorriso ... dist/'
-    // So 'dist/' is the ISO root.
-    // 'kernel' is installed to 'zig-out/bin/kernel'.
-    // 'cp_cmd' copies 'zig-out/bin/kernel' (via artifact) to 'dist/kernel'.
-    // We should do the same for test.elf.
 
-    // Run Step
+    // Copy kernel to dist/ for ISO building
     const run_cmd = b.addSystemCommand(&.{
         "cp",
     });
     run_cmd.addArtifactArg(kernel);
     run_cmd.addArg("dist/kernel");
 
-    // REDUNDANT COPY REMOVED
-    // const cp_elf_prod = b.addSystemCommand(&.{"cp"});
-    // cp_elf_prod.addArtifactArg(test_elf);
-    // cp_elf_prod.addArg("dist/test.elf");
-    // run_cmd.step.dependOn(&cp_elf_prod.step);
+    // Build ISO and boot with Limine (required for module loading)
+    const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", "os.iso", "dist/" });
+    iso_cmd.step.dependOn(&run_cmd.step);
+
+    const limine_deploy = b.addSystemCommand(&.{ "./limine", "bios-install", "os.iso" });
+    limine_deploy.step.dependOn(&iso_cmd.step);
 
     const qemu_cmd = b.addSystemCommand(&.{
         "qemu-system-x86_64",
@@ -111,47 +104,13 @@ pub fn build(b: *std.Build) void {
         "std",
         "-m",
         "512M",
-        "-m",
-        "512M",
         "-cpu",
         "max,+pks",
+        "-cdrom",
+        "os.iso",
+        "-boot",
+        "d",
     });
-    // qemu_cmd.addArg("dist/kernel"); // Load from dist - REMOVED for ISO boot
-
-    // ISO Logic for production run?
-    // The current run command uses -kernel dist/kernel directly?
-    // Wait, the original code had:
-    // run_cmd.addArtifactArg(kernel);
-    // qemu -kernel <artifact>
-    // But now we need modules. Limine -kernel direct loading assumes the kernel is multiboot or similar?
-    // Limine works with -kernel?
-    // Actually Limine bootloader is usually on ISO.
-    // If we run `qemu ... -kernel kernel`, QEMU uses its internal loader (multiboot usually).
-    // Our kernel is Limine protocol.
-    // Limine protocol kernels CANNOT be booted by QEMU -kernel directly unless QEMU supports Limine (it doesn't).
-
-    // Wait, the existing `run_cmd` provided:
-    // "-kernel"
-    // run_cmd.addArtifactArg(kernel);
-    // This implies the user WAS booting with -kernel.
-    // If this worked, maybe QEMU 8+ supports it? Or they are using multiboot-compat?
-    // Our kernel `entry.S` looks like Limine.
-
-    // If we want modules, we MUST use ISO with Limine.
-    // So we should update `run` step to build ISO like `test` step does.
-
-    // Let's update `run` to generate `os.iso` and boot it.
-
-    const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", "os.iso", "dist/" });
-    iso_cmd.step.dependOn(&run_cmd.step);
-
-    const limine_deploy = b.addSystemCommand(&.{ "./limine", "bios-install", "os.iso" });
-    limine_deploy.step.dependOn(&iso_cmd.step);
-
-    qemu_cmd.addArgs(&.{ "-cdrom", "os.iso", "-boot", "d" });
-    // Remove -kernel arg if we use cdrom
-    // But original `run_cmd` (now `qemu_cmd`) had -kernel.
-    // I am converting it.
 
     qemu_cmd.step.dependOn(&limine_deploy.step);
 
@@ -160,9 +119,6 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the kernel in QEMU");
     run_step.dependOn(&qemu_cmd.step);
 
-    // ======================================
-    // Test Kernel Build (PKS Enabled - Default)
-    // ======================================
     // ======================================
     // Test Kernel Build (PKS Enabled - Default)
     // ======================================
@@ -215,11 +171,7 @@ fn createTestStep(
     cp_elf.step.dependOn(&test_elf.step); // Ensure built
     cp_cmd.step.dependOn(&cp_elf.step); // Chain it
 
-    // Line removed
-
-    // Fix: xorriso needs the dist folder to exist and contain what we want
-    // We reuse 'dist/' but we need to make sure we don't overwrite if running in parallel.
-    // Ideally we'd use separate folders, but for now let's use separate ISO names.
+    // Use separate ISO names to avoid conflicts when running tests in parallel
     const iso_name = if (enable_pks) "test.iso" else "test_no_pks.iso";
 
     const iso_cmd = b.addSystemCommand(&.{ "xorriso", "-as", "mkisofs", "-b", "limine-bios-cd.bin", "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "--efi-boot", "limine-uefi-cd.bin", "-efi-boot-part", "--efi-boot-image", "--protective-msdos-label", "-o", iso_name, "dist/" });

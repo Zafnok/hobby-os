@@ -57,12 +57,24 @@ pub fn loadElf(file_ptr: [*]const u8, file_size: u64) !u64 {
     return header.e_entry;
 }
 
+/// Loads a single ELF program header (PT_LOAD) segment into memory.
+///
+/// This function allocates physical pages for the segment's memory range,
+/// maps them to the requested virtual addresses, copies the data from the file,
+/// and zeros out the BSS section (if p_memsz > p_filesz).
+///
+/// ## Parameters
+/// - `file_base`: Pointer to the start of the ELF file in memory
+/// - `ph`: Pointer to the ELF Program Header describing this segment
+///
+/// ## Process
+/// 1. Calculate page-aligned start and end addresses from the segment's virtual address
+/// 2. Allocate and map physical pages for the entire memory range
+/// 3. Copy initialized data from the file (p_filesz bytes)
+/// 4. Zero out uninitialized BSS section (p_memsz - p_filesz bytes)
 fn loadSegment(file_base: [*]const u8, ph: *const Elf64_Phdr) !void {
     if (ph.p_memsz == 0) return;
 
-    // Source in file
-    const src_ptr = file_base + ph.p_offset;
-    _ = src_ptr;
     // Destination in memory (Virtual Address)
     const dest_addr = ph.p_vaddr;
 

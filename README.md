@@ -48,7 +48,8 @@ This project has strict versioning requirements to ensure architectural stabilit
 - [ ] **ACPI / MADT Parsing**: Properly detecting hardware configuration (APIC bases, multiple cores).
 - [ ] **Heap Allocator**: Kernel heap support.
 - [ ] **File System**: Basic read-only FS support.
-- [ ] **ELF Loader**: Loading userspace programs.
+- [x] **ELF Loader**: Loading executable programs (`src/loaders/elf.zig`).
+- [x] **Interactive Shell**: Basic kernel shell (`src/demos/shell.zig`).
 - [ ] **User Mode (Ring 3)**: Switching to/from userspace.
 - [ ] **Minecraft**: Download and boot the jar (The Ultimate Goal).
 

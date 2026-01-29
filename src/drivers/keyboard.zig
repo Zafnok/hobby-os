@@ -26,7 +26,38 @@ const scancode_shift_map = [_]u8{
 
 var shift_pressed: bool = false;
 
+/// Flushes any stale data from the keyboard controller's output buffer.
+/// This prevents early key presses (before initialization) from leaving the controller in a faulty state.
+fn flushBuffer() void {
+    var flushed_count: usize = 0;
+    const max_iterations: usize = 100; // Prevent infinite loop
+    var iterations: usize = 0;
+
+    while (iterations < max_iterations) : (iterations += 1) {
+        // Read keyboard controller status register (port 0x64)
+        // Bit 0: Output buffer status (1 = full, 0 = empty)
+        const status = io.inb(0x64);
+
+        if (status & 0x01 == 0) {
+            // Output buffer is empty, we're done
+            break;
+        }
+
+        // Read and discard the byte from the data port
+        _ = io.inb(0x60);
+        flushed_count += 1;
+    }
+
+    if (flushed_count > 0) {
+        serial.info("Keyboard: Flushed stale bytes from buffer:");
+        serial.printHex(.info, flushed_count);
+    }
+}
+
 pub fn init() void {
+    // Flush any stale data from early key presses before enabling interrupts
+    flushBuffer();
+
     // Unmask IRQ1 (Keyboard) -> Map to Vector 33
     // IOAPIC Redirection
     apic.enableIrq(1, 33);
@@ -112,4 +143,17 @@ test "Keyboard Buffer Logic" {
     if (pop() != 'B') return error.TestFailed;
     if (pop() != 'C') return error.TestFailed;
     if (pop() != null) return error.TestFailed;
+}
+
+test "Keyboard Buffer Flush" {
+    // Test that flushBuffer doesn't crash and handles empty buffer gracefully
+    // Note: In test environment, we can't actually read from port 0x60/0x64,
+    // but we can verify the function is callable and doesn't panic.
+    // In actual hardware/QEMU, this will read the real status register.
+
+    // This test verifies the function signature and basic control flow.
+    // The actual hardware interaction is tested during manual QEMU runs.
+    flushBuffer();
+
+    // If we get here without panicking, the test passes
 }
