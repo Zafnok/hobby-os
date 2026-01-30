@@ -87,6 +87,60 @@ qemu-system-x86_64 -cpu SapphireRapids ...
 **Verify Support:**
 If the kernel panics early with a "PKS not supported" message, double-check that you are NOT using KVM (`-enable-kvm` or `-accel kvm`) unless your host CPU actually supports PKS (Sapphire Rapids+). You must use software emulation (TCG) on unsupported host hardware.
 
+## Kernel Table Architecture (SASOS Syscall Mechanism)
+
+### The Two-Layer Wrapper System
+
+Our OS uses a **kernel table** of function pointers as the syscall mechanism, replacing traditional `syscall` instructions. This requires wrappers on both sides:
+
+**Kernel-Side Wrappers** (`src/kernel/table.zig`):
+- Run in **kernel-protected memory** with PKS privileges
+- Bridge kernel internals → C ABI contract
+- Example: `framebuffer.drawRect()` (takes framebuffer pointer, uses `u64`) → `kernelDrawRect()` (hides pointer, uses `u32`)
+
+**User-Side Wrappers** (`src/user/lib.zig`):
+- Run in **userspace** (part of the user program)
+- Bridge C ABI contract → idiomatic Zig
+- Example: `kernel_table.poll_key()` (returns `0 | char`) → `getKey()` (returns `?u8`)
+
+### Why Can't Userspace Call Drivers Directly?
+
+**The Answer: PKS Memory Isolation**
+
+In traditional OS (Ring 0/3):
+- Kernel and userspace have **separate address spaces**
+- Userspace can't call kernel because kernel code doesn't exist in userspace page tables
+- Use `syscall` instruction to switch address spaces
+
+In our SASOS with PKS:
+- Kernel and userspace **share the same address space** (everything mapped)
+- BUT kernel memory is **protected by Protection Keys** (PKS)
+- Userspace can see addresses but **cannot access them** - CPU blocks with Page Fault
+
+**The kernel table is the bridge:**
+- Function pointers point to kernel wrapper functions
+- Wrappers run with **kernel privileges** (PKS allows them to access kernel memory)
+- When userspace calls through a function pointer, CPU transitions to kernel privilege
+- Wrappers safely access kernel drivers and hardware
+
+**The call flow:**
+```
+Snake Game (userspace)
+  ↓ calls getKey()                   // User wrapper (Zig convenience)
+  ↓ accesses kernel_table pointer    // Shared address space (SASOS)
+  ↓ calls .poll_key()                // Function pointer in table
+  ↓ CPU transitions to kernel        // PKS allows kernel code execution
+  ↓ executes kernelPollKey()         // Kernel wrapper (has PKS privileges)
+  ↓ calls keyboard.pop()             // Kernel driver (accesses protected memory)
+  ↓ returns to userspace             // CPU transitions back
+```
+
+Without kernel wrappers, we'd have to either:
+- Put drivers in unprotected memory (defeats PKS isolation)
+- Give userspace direct hardware access (unsafe, defeats the entire OS)
+
+**The kernel table + wrappers is our SASOS syscall mechanism** - it replaces traditional `syscall` instructions!
+
 ## Architectural FAQ
 
 ### Why does the kernel table wrapper have different signatures than the underlying drivers?
