@@ -5,6 +5,7 @@ const font = @import("../drivers/graphics/font.zig");
 const keyboard = @import("../drivers/keyboard.zig");
 const serial = @import("../kernel/serial.zig");
 const elf = @import("../loaders/elf.zig");
+const table = @import("../kernel/table.zig");
 
 /// Runs the interactive shell.
 /// This function enters an infinite loop.
@@ -65,8 +66,9 @@ pub fn runShell(fb: *limine.struct_limine_framebuffer, modules: ?*limine.struct_
                                     if (elf.loadElf(@ptrCast(file.address), file.size)) |entry| {
                                         printStr(fb, &cursor_x, &cursor_y, "Jumping to entry point...");
 
-                                        const entry_fn = @as(*const fn () callconv(.c) void, @ptrFromInt(entry));
-                                        entry_fn();
+                                        // Pass the kernel table to userspace via C calling convention (RDI)
+                                        const entry_fn = @as(*const fn (ktable: *const table.KernelTable) callconv(.c) void, @ptrFromInt(entry));
+                                        entry_fn(&table.table);
 
                                         // If it returns (unlikely for our test), we are back?
                                         // It might mess up stack/regs but let's hope for best.
