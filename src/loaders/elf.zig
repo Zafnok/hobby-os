@@ -1,9 +1,9 @@
 const std = @import("std");
 const limine = @import("../limine_import.zig").C;
 const serial = @import("../kernel/serial.zig");
-const memory = @import("../memory/layout.zig");
-const pmm = @import("../memory/pmm.zig");
-const vmm = @import("../memory/vmm.zig");
+const memory = @import("../kernel/memory/layout.zig");
+const pmm = @import("../kernel/memory/pmm.zig");
+const vmm = @import("../kernel/memory/vmm.zig");
 
 // Use Zig's standard ELF definitions
 const Elf64_Ehdr = std.elf.Elf64_Ehdr;

@@ -1,19 +1,23 @@
 const std = @import("std");
 const limine = @import("limine_import.zig").C;
 pub const serial = @import("kernel/serial.zig");
-const memory = @import("memory/layout.zig");
+const memory = @import("kernel/memory/layout.zig");
 const framebuffer = @import("drivers/graphics/framebuffer.zig");
-pub const pmm = @import("memory/pmm.zig");
-pub const heap = @import("memory/heap.zig");
+pub const pmm = @import("kernel/memory/pmm.zig");
+pub const heap = @import("kernel/memory/heap.zig");
 const demo_smiley = @import("demos/smiley.zig");
 const demo_shell = @import("demos/shell.zig");
 const gdt = @import("arch/x86_64/gdt.zig");
 const idt = @import("arch/x86_64/idt.zig");
 const apic = @import("arch/x86_64/apic.zig");
 const pks = @import("arch/x86_64/pks.zig");
-const vmm = @import("memory/vmm.zig");
+const vmm = @import("kernel/memory/vmm.zig");
 pub const elf = @import("loaders/elf.zig");
 const table = @import("kernel/table.zig");
+
+// Userspace modules
+const user_lib = @import("user/lib.zig");
+const user_heap = @import("user/heap.zig");
 
 // We now import these from entry.S
 // Define requests here to ensure they are exported and kept
@@ -178,6 +182,8 @@ test {
     std.testing.refAllDecls(framebuffer);
     std.testing.refAllDecls(elf);
     std.testing.refAllDecls(table);
+    std.testing.refAllDecls(user_lib);
+    std.testing.refAllDecls(user_heap);
 }
 
 /// Shuts down the kernel by entering an infinite loop.

@@ -75,7 +75,7 @@ fn ioapicWrite(reg: u32, value: u32) void {
     dat_ptr.* = value;
 }
 
-const vmm = @import("../../memory/vmm.zig");
+const vmm = @import("../../kernel/memory/vmm.zig");
 
 // ...
 

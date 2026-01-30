@@ -35,9 +35,9 @@
 /// If this were a traditional OS, every `malloc()` or process creation would involve VMM calls.
 /// In SASOS, we only use VMM for initial setup and special memory regions.
 const std = @import("std");
-const limine = @import("../limine_import.zig").C;
+const limine = @import("../../limine_import.zig").C;
 const pmm = @import("pmm.zig");
-const serial = @import("../kernel/serial.zig");
+const serial = @import("../serial.zig");
 const layout = @import("layout.zig");
 
 // Requests defined in limine.c

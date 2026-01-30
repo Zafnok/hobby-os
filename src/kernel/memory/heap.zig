@@ -1,7 +1,7 @@
 const std = @import("std");
 const pmm = @import("pmm.zig");
 const vmm = @import("vmm.zig");
-const serial = @import("../kernel/serial.zig");
+const serial = @import("../serial.zig");
 
 // Constants
 const PAGE_SIZE = pmm.PAGE_SIZE;

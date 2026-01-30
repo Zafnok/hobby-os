@@ -1,6 +1,6 @@
 const std = @import("std");
-const limine = @import("../limine_import.zig").C;
-const serial = @import("../kernel/serial.zig");
+const limine = @import("../../limine_import.zig").C;
+const serial = @import("../serial.zig");
 // const layout = @import("layout.zig");
 
 // Externs from limine.c

@@ -12,7 +12,7 @@ const std = @import("std");
 const framebuffer = @import("../drivers/graphics/framebuffer.zig");
 const keyboard = @import("../drivers/keyboard.zig");
 const serial = @import("./serial.zig");
-const pmm = @import("../memory/pmm.zig");
+const pmm = @import("memory/pmm.zig");
 const io = @import("../arch/x86_64/io.zig");
 const limine = @import("../limine_import.zig").C;
 
