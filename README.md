@@ -50,7 +50,6 @@ This project has strict versioning requirements to ensure architectural stabilit
 - [ ] **File System**: Basic read-only FS support.
 - [x] **ELF Loader**: Loading executable programs (`src/loaders/elf.zig`).
 - [x] **Interactive Shell**: Basic kernel shell (`src/demos/shell.zig`).
-- [ ] **User Mode (Ring 3)**: Switching to/from userspace.
 - [ ] **Minecraft**: Download and boot the jar (The Ultimate Goal).
 
 ## Hardware Compatibility
@@ -87,3 +86,52 @@ qemu-system-x86_64 -cpu SapphireRapids ...
 
 **Verify Support:**
 If the kernel panics early with a "PKS not supported" message, double-check that you are NOT using KVM (`-enable-kvm` or `-accel kvm`) unless your host CPU actually supports PKS (Sapphire Rapids+). You must use software emulation (TCG) on unsupported host hardware.
+
+## Architectural FAQ
+
+### Why does the kernel table wrapper have different signatures than the underlying drivers?
+
+**Q:** Why does `kernelDrawRect()` take `u32` parameters when `framebuffer.drawRect()` uses `u64`?
+
+**A:** The kernel table defines the **userspace API**, while drivers use types that match hardware:
+- **Limine framebuffer protocol** uses `u64` for width/height (matching the bootloader spec)
+- **Userspace API** uses `u32` (more practical - no framebuffer is 4 billion pixels wide)
+- The wrapper also **hides framebuffer pointers** from userspace (SASOS design - userspace doesn't manage hardware resources directly)
+
+### Why don't we use the VMM more?
+
+**Q:** If heap and kernel table don't use VMM, when do we actually use it?
+
+**A:** In SASOS, VMM has a **minimal role** compared to traditional OS:
+
+**Traditional OS:**
+- Creates separate address spaces for each process
+- Constantly maps/unmaps pages as processes spawn/die
+- Heavy VMM usage for every memory operation
+
+**SASOS (our OS):**
+- **One-time setup**: Creates page tables, maps HHDM, maps kernel (during `vmm.init()`)
+- **Special mappings only**: MMIO regions (APIC), ELF segments with specific permissions, PKS-protected regions
+- **Most allocations use PMM + HHDM directly**: No VMM needed because everything shares one address space
+
+**Why it works:** PKS (Protection Keys) provides isolation without separate page tables. Physical pages from PMM are already accessible via HHDM.
+
+### Why can't `serial.info()` be used for userspace logging?
+
+**Q:** Why create `serial.logRaw()` when `serial.info()` already exists?
+
+**A:** Userspace needs **complete output control**:
+
+```zig
+// With serial.info():
+log("Score: ");  // Outputs: [INFO] Score: \n
+log("42");       // Outputs: [INFO] 42\n
+// Result: Two lines with prefixes
+
+// With serial.logRaw():
+log("Score: ");  // Outputs: Score: 
+log("42");       // Outputs: 42
+// Result: "Score: 42" on one line, no prefixes
+```
+
+Kernel functions add `[INFO]` tags and newlines. Games and userspace programs need raw output for progress bars, scoreboards, animations, etc.

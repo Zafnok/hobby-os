@@ -1,3 +1,39 @@
+/// Virtual Memory Manager (VMM)
+///
+/// In a traditional operating system, the VMM is heavily used to:
+/// - Create separate address spaces for each process
+/// - Map/unmap pages constantly as processes are created/destroyed
+/// - Implement copy-on-write, demand paging, and other memory management strategies
+///
+/// **BUT**: In our Single Address Space Operating System (SASOS), the VMM has a very different, more limited role:
+///
+/// ## VMM Usage in SASOS
+///
+/// 1. **One-time Setup** (`vmm.init()`):
+///    - Creates the kernel's page tables (PML4)
+///    - Maps the entire physical memory to Higher Half Direct Map (HHDM)
+///      - Uses 2MB huge pages where possible for efficiency
+///    - Maps the kernel executable itself
+///    - Switches CR3 to use our custom page tables
+///
+/// 2. **Special Mappings** (`vmm.mapPage()`, `vmm.mapHugePage()`):
+///    - MMIO regions (e.g., APIC at 0xFEE00000) - hardware registers not backed by RAM
+///    - ELF program segments with specific flags (executable, read-only, etc.)
+///    - Future: PKS-protected memory regions with specific protection keys
+///
+/// 3. **Address Translation Helpers**:
+///    - `getHhdmOffset()` - Used by heap and allocators for phys↔virt conversions
+///    - `physToVirt()` / `virtToPhys()` - HHDM address conversions
+///
+/// ## Why VMM Seems "Unused"
+///
+/// Most memory allocations in SASOS don't need VMM because:
+/// - **PMM + HHDM is enough**: Physical pages from PMM are already mapped via HHDM
+/// - **No per-process address spaces**: Kernel and userspace share one address space
+/// - **PKS for isolation**: We use Protection Keys (not separate page tables) for userspace isolation
+///
+/// If this were a traditional OS, every `malloc()` or process creation would involve VMM calls.
+/// In SASOS, we only use VMM for initial setup and special memory regions.
 const std = @import("std");
 const limine = @import("../limine_import.zig").C;
 const pmm = @import("pmm.zig");

@@ -21,15 +21,6 @@ fn shouldLog(level: LogLevel) bool {
     return msg_level_int >= min_level_int;
 }
 
-/// Writes a raw string to the COM1 serial port (0x3F8), followed by a newline.
-// Internal raw logger
-fn logRaw(msg: []const u8) void {
-    for (msg) |c| {
-        io.outb(0x3F8, c);
-    }
-    io.outb(0x3F8, '\n');
-}
-
 /// Logs a message with the specified log level if it meets the configured verbosity.
 /// Prepends a tag (e.g., "[INFO]") to the message.
 pub fn log(comptime level: LogLevel, msg: []const u8) void {
@@ -45,6 +36,7 @@ pub fn log(comptime level: LogLevel, msg: []const u8) void {
             io.outb(0x3F8, c);
         }
         logRaw(msg);
+        io.outb(0x3F8, '\n');
     }
 }
 
@@ -66,6 +58,19 @@ pub fn warn(msg: []const u8) void {
 /// Logs an error message.
 pub fn err(msg: []const u8) void {
     log(.error_level, msg);
+}
+
+/// Logs raw bytes to the serial port without any prefix or newline.
+/// This is intended for userspace use via the Kernel Table where userspace
+/// controls all formatting and output (e.g., for game scores, progress bars, etc.).
+///
+/// Example:
+///   logRaw("Score: ");  // No newline
+///   logRaw("42");       // Outputs "Score: 42" on same line
+pub fn logRaw(msg: []const u8) void {
+    for (msg) |c| {
+        io.outb(0x3F8, c);
+    }
 }
 
 /// Prints a 64-bit unsigned integer in hexadecimal format to the serial port.
